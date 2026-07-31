@@ -1,0 +1,815 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Biology &amp; Botany Desk</title>
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/tailwindcss/2.2.19/tailwind.min.css" />
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+  body { margin: 0; }
+</style>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel" data-presets="react">
+const { useState, useEffect, useMemo, useRef } = React;
+
+// ---------------------------------------------------------------------------
+// localStorage-backed storage shim, matching the window.storage API shape
+// used by usePersistentState below (get/set only — this app doesn't need
+// delete/list). Swap this out if you later add a real backend.
+// ---------------------------------------------------------------------------
+const storage = {
+  get: async (key) => {
+    const v = window.localStorage.getItem(key);
+    if (v === null) throw new Error("not found");
+    return { key, value: v };
+  },
+  set: async (key, value) => {
+    window.localStorage.setItem(key, value);
+    return { key, value };
+  },
+};
+
+// ---------------------------------------------------------------------------
+// Lightweight icon glyphs (no external icon library needed for GitHub Pages)
+// ---------------------------------------------------------------------------
+const ICON_GLYPHS = {
+  dashboard: "\u25A6",
+  users: "\uD83E\uDDD1\u200D\uD83C\uDF93",
+  calendar: "\uD83D\uDDD3\uFE0F",
+  upload: "\u2B06\uFE0F",
+  search: "\uD83D\uDD0D",
+  plus: "+",
+  trash: "\uD83D\uDDD1\uFE0F",
+  leaf: "\uD83C\uDF3F",
+  x: "\u2715",
+  sprout: "\uD83C\uDF31",
+};
+
+function Icon({ glyph, size = 16, style = {}, className = "" }) {
+  return (
+    <span
+      className={className}
+      style={{ fontSize: size, lineHeight: 1, display: "inline-block", ...style }}
+      aria-hidden="true"
+    >
+      {ICON_GLYPHS[glyph] || ""}
+    </span>
+  );
+}
+
+
+// ---------------------------------------------------------------------------
+// Theme — herbarium specimen sheet meets a Tamil Nadu classroom chalkboard.
+// Core Tailwind utilities only allowed, so custom hexes live here.
+// ---------------------------------------------------------------------------
+const THEME = {
+  boardGreen: "#16281C",
+  boardGreenSoft: "#1F3626",
+  moss: "#5C7A52",
+  mossLight: "#8CA478",
+  paper: "#EEF1E2",
+  paperDark: "#E2E6D2",
+  ink: "#1B2A1E",
+  inkSoft: "#4A5A4C",
+  chalk: "#F6F7F0",
+  marigold: "#D4941C",
+  marigoldSoft: "#F1D9A6",
+  coral: "#C1502E",
+};
+
+const FONTS_IMPORT =
+  "@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');";
+
+const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const PERIODS = [1, 2, 3, 4, 5, 6, 7, 8];
+const TODAY_INDEX = (() => {
+  const d = new Date().getDay(); // 0 Sun .. 6 Sat
+  return d === 0 ? -1 : d - 1; // map Mon=0..Sat=5, Sunday -> -1
+})();
+
+// Seeded from the uploaded "Teachers' Timetable 26-27" workbook, SR block
+// (Mon=0 .. Sat=5, Period 1-8). Periods left out below mean free periods.
+const DEFAULT_TIMETABLE = {
+  "0-1": "XII-B", "0-2": "XII-E", "0-4": "XI-BC", "0-5": "XI-C", "0-7": "XI-C", "0-8": "XI-C",
+  "1-1": "XII-B", "1-2": "XII-E", "1-4": "XI-BC", "1-5": "XI-C",
+  "2-1": "XII-B", "2-2": "XII-E", "2-4": "XI-BC", "2-5": "XI-C", "2-7": "XII-B", "2-8": "XII-B",
+  "3-1": "XII-B", "3-2": "XII-E", "3-4": "XI-BC", "3-5": "XI-C", "3-7": "XII-E", "3-8": "XII-E",
+  "4-1": "XII-B", "4-2": "XII-E", "4-4": "XI-BC", "4-5": "XI-C", "4-7": "XI-BC", "4-8": "XI-BC",
+};
+
+// ---------------------------------------------------------------------------
+// Persistent storage hook — reads/writes the artifact key-value store.
+// ---------------------------------------------------------------------------
+function usePersistentState(key, initialValue) {
+  const [value, setValue] = useState(initialValue);
+  const [ready, setReady] = useState(false);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const result = await storage.get(key);
+        if (!cancelled && result && result.value) {
+          setValue(JSON.parse(result.value));
+        }
+      } catch (e) {
+        // key not found yet — keep initial value
+      } finally {
+        if (!cancelled) setReady(true);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [key]);
+
+  const persist = async (next) => {
+    const resolved = typeof next === "function" ? next(value) : next;
+    setValue(resolved);
+    try {
+      const result = await storage.set(key, JSON.stringify(resolved));
+      if (!result) setError("Could not save. Your changes may not persist.");
+      else setError(null);
+    } catch (e) {
+      setError("Could not save. Your changes may not persist.");
+    }
+  };
+
+  return [value, persist, ready, error];
+}
+
+// ---------------------------------------------------------------------------
+// Small building blocks
+// ---------------------------------------------------------------------------
+function LeafDivider() {
+  return (
+    <div className="flex items-center gap-2 my-3" aria-hidden="true">
+      <span style={{ height: 1, background: THEME.moss, flex: 1, opacity: 0.5 }} />
+      <Icon glyph="leaf" size={13} style={{ color: THEME.moss }} />
+      <span style={{ height: 1, background: THEME.moss, flex: 1, opacity: 0.5 }} />
+    </div>
+  );
+}
+
+function SpecimenCard({ eyebrow, title, value, sub, accent }) {
+  return (
+    <div
+      className="rounded-sm p-5 flex-1 min-w-0"
+      style={{
+        background: THEME.paper,
+        border: `1px solid ${THEME.paperDark}`,
+        borderTop: `3px solid ${accent || THEME.moss}`,
+      }}
+    >
+      <div
+        className="text-xs uppercase font-semibold tracking-widest"
+        style={{ color: THEME.inkSoft, letterSpacing: "0.14em" }}
+      >
+        {eyebrow}
+      </div>
+      <div
+        className="mt-2 text-4xl"
+        style={{ fontFamily: "Fraunces, serif", color: THEME.ink, fontWeight: 600 }}
+      >
+        {value}
+      </div>
+      <div className="mt-1 text-sm" style={{ color: THEME.inkSoft }}>
+        {title}
+      </div>
+      {sub && (
+        <div className="mt-3 text-xs" style={{ color: THEME.moss, fontFamily: "'JetBrains Mono', monospace" }}>
+          {sub}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Main App
+// ---------------------------------------------------------------------------
+function App() {
+  const [tab, setTab] = useState("dashboard");
+
+  const [students, setStudents, studentsReady] = usePersistentState("students", []);
+  const [timetable, setTimetable, timetableReady] = usePersistentState("timetable", DEFAULT_TIMETABLE);
+  const [exams, setExams, examsReady] = usePersistentState("exams", []);
+
+  return (
+    <div
+      className="min-h-screen w-full"
+      style={{ background: THEME.chalk, fontFamily: "Inter, sans-serif", color: THEME.ink }}
+    >
+      <style>{FONTS_IMPORT}</style>
+
+      {/* Nav */}
+      <header style={{ background: THEME.boardGreen }} className="text-white">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 py-4">
+          <div className="flex items-center gap-2">
+            <Icon glyph="sprout" size={20} style={{ color: THEME.marigoldSoft }} />
+            <span
+              className="text-lg sm:text-xl"
+              style={{ fontFamily: "Fraunces, serif", fontWeight: 600, letterSpacing: "0.01em" }}
+            >
+              Biology &amp; Botany Desk
+            </span>
+          </div>
+          <div className="text-xs mt-1" style={{ color: THEME.mossLight }}>
+            XI &amp; XII · Tamil Nadu Govt. Higher Secondary School
+          </div>
+
+          <nav className="flex gap-1 mt-4 -mb-4 overflow-x-auto">
+            {[
+              { id: "dashboard", label: "Dashboard", icon: "dashboard" },
+              { id: "students", label: "Students", icon: "users" },
+              { id: "timetable", label: "Timetable", icon: "calendar" },
+            ].map(({ id, label, icon }) => {
+              const active = tab === id;
+              return (
+                <button
+                  key={id}
+                  onClick={() => setTab(id)}
+                  className="flex items-center gap-1.5 px-3 sm:px-4 py-2.5 text-sm whitespace-nowrap transition-colors"
+                  style={{
+                    color: active ? THEME.chalk : THEME.mossLight,
+                    borderBottom: active ? `2px solid ${THEME.marigold}` : "2px solid transparent",
+                    fontWeight: active ? 600 : 500,
+                  }}
+                >
+                  <Icon glyph={icon} size={15} />
+                  {label}
+                </button>
+              );
+            })}
+          </nav>
+        </div>
+      </header>
+
+      <main className="max-w-5xl mx-auto px-4 sm:px-6 py-6">
+        {tab === "dashboard" && (
+          <DashboardTab
+            students={students}
+            timetable={timetable}
+            exams={exams}
+            setExams={setExams}
+            ready={studentsReady && timetableReady && examsReady}
+          />
+        )}
+        {tab === "students" && (
+          <StudentsTab students={students} setStudents={setStudents} ready={studentsReady} />
+        )}
+        {tab === "timetable" && (
+          <TimetableTab timetable={timetable} setTimetable={setTimetable} ready={timetableReady} />
+        )}
+      </main>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Dashboard
+// ---------------------------------------------------------------------------
+function DashboardTab({ students, timetable, exams, setExams, ready }) {
+  const [showExamForm, setShowExamForm] = useState(false);
+  const [examName, setExamName] = useState("");
+  const [examClass, setExamClass] = useState("11th");
+  const [examDate, setExamDate] = useState("");
+
+  const totalStudents = students.length;
+
+  const classesToday =
+    TODAY_INDEX === -1
+      ? 0
+      : PERIODS.filter((p) => (timetable[`${TODAY_INDEX}-${p}`] || "").trim() !== "").length;
+
+  const todayLabel = TODAY_INDEX === -1 ? "Sunday" : DAYS[TODAY_INDEX];
+
+  const upcoming = useMemo(() => {
+    const todayStr = new Date().toISOString().slice(0, 10);
+    return [...exams]
+      .filter((e) => e.date >= todayStr)
+      .sort((a, b) => a.date.localeCompare(b.date));
+  }, [exams]);
+
+  const addExam = () => {
+    if (!examName.trim() || !examDate) return;
+    const next = [
+      ...exams,
+      { id: Date.now().toString(), name: examName.trim(), className: examClass, date: examDate },
+    ];
+    setExams(next);
+    setExamName("");
+    setExamDate("");
+    setShowExamForm(false);
+  };
+
+  const removeExam = (id) => setExams(exams.filter((e) => e.id !== id));
+
+  return (
+    <div>
+      <div className="flex flex-col sm:flex-row gap-4">
+        <SpecimenCard
+          eyebrow="Roster"
+          title="Students on record"
+          value={ready ? totalStudents : "…"}
+          sub={totalStudents === 0 ? "Import an Excel sheet to begin" : "across XI & XII"}
+          accent={THEME.moss}
+        />
+        <SpecimenCard
+          eyebrow={todayLabel}
+          title="Classes today"
+          value={ready ? classesToday : "…"}
+          sub={TODAY_INDEX === -1 ? "No periods on Sunday" : "from your timetable"}
+          accent={THEME.marigold}
+        />
+        <SpecimenCard
+          eyebrow="Ahead"
+          title="Upcoming exams"
+          value={ready ? upcoming.length : "…"}
+          sub={upcoming[0] ? `Next: ${upcoming[0].name} · ${upcoming[0].date}` : "Nothing scheduled"}
+          accent={THEME.coral}
+        />
+      </div>
+
+      <LeafDivider />
+
+      <div className="rounded-sm p-4 sm:p-5" style={{ background: THEME.paper, border: `1px solid ${THEME.paperDark}` }}>
+        <div className="flex items-center justify-between">
+          <h2 className="text-sm font-semibold uppercase tracking-wide" style={{ color: THEME.inkSoft, letterSpacing: "0.1em" }}>
+            Exam Register
+          </h2>
+          <button
+            onClick={() => setShowExamForm((s) => !s)}
+            className="flex items-center gap-1 text-sm px-3 py-1.5 rounded-sm text-white"
+            style={{ background: THEME.boardGreen }}
+          >
+            {showExamForm ? <Icon glyph="x" size={14} /> : <Icon glyph="plus" size={14} />}
+            {showExamForm ? "Cancel" : "Add exam"}
+          </button>
+        </div>
+
+        {showExamForm && (
+          <div className="mt-4 grid grid-cols-1 sm:grid-cols-4 gap-2">
+            <input
+              value={examName}
+              onChange={(e) => setExamName(e.target.value)}
+              placeholder="Exam name (e.g. Botany Unit Test)"
+              className="sm:col-span-2 px-3 py-2 text-sm rounded-sm outline-none"
+              style={{ border: `1px solid ${THEME.paperDark}`, background: THEME.chalk }}
+            />
+            <select
+              value={examClass}
+              onChange={(e) => setExamClass(e.target.value)}
+              className="px-3 py-2 text-sm rounded-sm outline-none"
+              style={{ border: `1px solid ${THEME.paperDark}`, background: THEME.chalk }}
+            >
+              <option>11th</option>
+              <option>12th</option>
+            </select>
+            <input
+              type="date"
+              value={examDate}
+              onChange={(e) => setExamDate(e.target.value)}
+              className="px-3 py-2 text-sm rounded-sm outline-none"
+              style={{ border: `1px solid ${THEME.paperDark}`, background: THEME.chalk }}
+            />
+            <button
+              onClick={addExam}
+              className="sm:col-span-4 mt-1 text-sm px-3 py-2 rounded-sm text-white"
+              style={{ background: THEME.marigold }}
+            >
+              Save exam
+            </button>
+          </div>
+        )}
+
+        <div className="mt-4 divide-y" style={{ borderColor: THEME.paperDark }}>
+          {exams.length === 0 && (
+            <div className="text-sm py-3" style={{ color: THEME.inkSoft }}>
+              No exams added yet.
+            </div>
+          )}
+          {[...exams]
+            .sort((a, b) => a.date.localeCompare(b.date))
+            .map((e) => (
+              <div key={e.id} className="flex items-center justify-between py-2.5" style={{ borderTopColor: THEME.paperDark, borderTopWidth: 1 }}>
+                <div>
+                  <div className="text-sm font-medium" style={{ color: THEME.ink }}>{e.name}</div>
+                  <div className="text-xs" style={{ color: THEME.inkSoft, fontFamily: "'JetBrains Mono', monospace" }}>
+                    {e.className} · {e.date}
+                  </div>
+                </div>
+                <button onClick={() => removeExam(e.id)} aria-label={`Remove ${e.name}`}>
+                  <Icon glyph="trash" size={15} style={{ color: THEME.coral }} />
+                </button>
+              </div>
+            ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Students — import + cascading search
+// ---------------------------------------------------------------------------
+function normalizeRow(row) {
+  const get = (names) => {
+    for (const key of Object.keys(row)) {
+      const k = key.trim().toLowerCase();
+      if (names.includes(k)) return String(row[key] ?? "").trim();
+    }
+    return "";
+  };
+  return {
+    academicYear: get(["academic year", "academicyear", "year"]),
+    className: get(["class", "std", "standard"]),
+    section: get(["section", "sec"]),
+    rollNo: get(["roll no", "rollno", "roll number", "roll_no", "roll"]),
+    name: get(["student name", "name", "studentname"]),
+  };
+}
+
+function StudentsTab({ students, setStudents, ready }) {
+  const fileRef = useRef(null);
+  const [importing, setImporting] = useState(false);
+  const [importError, setImportError] = useState(null);
+  const [fileName, setFileName] = useState(null);
+
+  const [year, setYear] = useState("");
+  const [className, setClassName] = useState("");
+  const [nameQuery, setNameQuery] = useState("");
+  const [selected, setSelected] = useState(null);
+
+  const years = useMemo(
+    () => [...new Set(students.map((s) => s.academicYear).filter(Boolean))].sort(),
+    [students]
+  );
+  const classes = useMemo(
+    () =>
+      [...new Set(students.filter((s) => !year || s.academicYear === year).map((s) => s.className).filter(Boolean))].sort(),
+    [students, year]
+  );
+
+  const scoped = useMemo(
+    () =>
+      students.filter(
+        (s) => (!year || s.academicYear === year) && (!className || s.className === className)
+      ),
+    [students, year, className]
+  );
+
+  const matches = useMemo(() => {
+    if (!nameQuery.trim()) return [];
+    const q = nameQuery.trim().toLowerCase();
+    return scoped.filter((s) => s.name.toLowerCase().includes(q)).slice(0, 8);
+  }, [scoped, nameQuery]);
+
+  const handleFile = async (file) => {
+    if (!file) return;
+    setImportError(null);
+    setImporting(true);
+    setFileName(file.name);
+    try {
+      const buffer = await file.arrayBuffer();
+      const bytes = new Uint8Array(buffer);
+      const wb = XLSX.read(bytes, { type: "array" });
+      if (!wb.SheetNames || wb.SheetNames.length === 0) {
+        throw new Error("No sheets found in this file.");
+      }
+      const sheet = wb.Sheets[wb.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(sheet, { defval: "" });
+      const normalized = rows.map(normalizeRow).filter((r) => r.name);
+      if (normalized.length === 0) {
+        setImportError(
+          "No student rows found. Check the header row has columns like Academic Year, Class, Section, Roll No, Student Name."
+        );
+      } else {
+        await setStudents(normalized);
+      }
+    } catch (e) {
+      console.error("Excel import failed:", e);
+      setImportError(
+        `Could not read that file (${e?.message || "unknown error"}). Please upload a valid .xlsx, .xls or .csv file.`
+      );
+    } finally {
+      setImporting(false);
+    }
+  };
+
+  return (
+    <div>
+      {/* Import */}
+      <div className="rounded-sm p-4 sm:p-5" style={{ background: THEME.paper, border: `1px solid ${THEME.paperDark}` }}>
+        <h2 className="text-sm font-semibold uppercase tracking-wide" style={{ color: THEME.inkSoft, letterSpacing: "0.1em" }}>
+          Import Student List
+        </h2>
+        <p className="text-xs mt-1" style={{ color: THEME.inkSoft }}>
+          Columns expected: Academic Year, Class, Section, Roll No, Student Name.
+        </p>
+        <div className="mt-3 flex flex-col sm:flex-row items-start sm:items-center gap-3">
+          <button
+            onClick={() => fileRef.current?.click()}
+            className="flex items-center gap-2 text-sm px-4 py-2 rounded-sm text-white"
+            style={{ background: THEME.boardGreen }}
+          >
+            <Icon glyph="upload" size={15} />
+            {importing ? "Reading…" : "Choose Excel file"}
+          </button>
+          <input
+            ref={fileRef}
+            type="file"
+            accept=".xlsx,.xls,.csv"
+            className="hidden"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              handleFile(file);
+              e.target.value = "";
+            }}
+          />
+          {fileName && (
+            <span className="text-xs" style={{ color: THEME.moss, fontFamily: "'JetBrains Mono', monospace" }}>
+              {fileName}
+            </span>
+          )}
+        </div>
+        {importError && (
+          <div className="mt-3 text-xs px-3 py-2 rounded-sm" style={{ background: "#F6E4DD", color: THEME.coral }}>
+            {importError}
+          </div>
+        )}
+        {ready && students.length > 0 && (
+          <div className="mt-3 text-xs" style={{ color: THEME.inkSoft }}>
+            {students.length} students on record from your last import.
+          </div>
+        )}
+      </div>
+
+      <LeafDivider />
+
+      {/* Search */}
+      <div className="rounded-sm p-4 sm:p-5" style={{ background: THEME.paper, border: `1px solid ${THEME.paperDark}` }}>
+        <h2 className="text-sm font-semibold uppercase tracking-wide" style={{ color: THEME.inkSoft, letterSpacing: "0.1em" }}>
+          Find a Student
+        </h2>
+
+        <div className="mt-3 grid grid-cols-1 sm:grid-cols-3 gap-2">
+          <select
+            value={year}
+            onChange={(e) => {
+              setYear(e.target.value);
+              setClassName("");
+              setSelected(null);
+            }}
+            className="px-3 py-2 text-sm rounded-sm outline-none"
+            style={{ border: `1px solid ${THEME.paperDark}`, background: THEME.chalk }}
+          >
+            <option value="">Academic year — all</option>
+            {years.map((y) => (
+              <option key={y} value={y}>{y}</option>
+            ))}
+          </select>
+
+          <select
+            value={className}
+            onChange={(e) => {
+              setClassName(e.target.value);
+              setSelected(null);
+            }}
+            className="px-3 py-2 text-sm rounded-sm outline-none"
+            style={{ border: `1px solid ${THEME.paperDark}`, background: THEME.chalk }}
+          >
+            <option value="">Class — all</option>
+            {classes.map((c) => (
+              <option key={c} value={c}>{c}</option>
+            ))}
+          </select>
+
+          <div className="relative">
+            <Icon glyph="search" size={14} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: THEME.inkSoft }} />
+            <input
+              value={nameQuery}
+              onChange={(e) => {
+                setNameQuery(e.target.value);
+                setSelected(null);
+              }}
+              placeholder="Student name…"
+              className="w-full pl-8 pr-3 py-2 text-sm rounded-sm outline-none"
+              style={{ border: `1px solid ${THEME.paperDark}`, background: THEME.chalk }}
+            />
+          </div>
+        </div>
+
+        {nameQuery && !selected && (
+          <div className="mt-2 rounded-sm overflow-hidden" style={{ border: `1px solid ${THEME.paperDark}` }}>
+            {matches.length === 0 ? (
+              <div className="text-sm px-3 py-2" style={{ color: THEME.inkSoft, background: THEME.chalk }}>
+                No matching students in this scope.
+              </div>
+            ) : (
+              matches.map((s, i) => (
+                <button
+                  key={`${s.name}-${i}`}
+                  onClick={() => setSelected(s)}
+                  className="w-full text-left px-3 py-2 text-sm flex justify-between"
+                  style={{ background: THEME.chalk, borderTop: i ? `1px solid ${THEME.paperDark}` : "none" }}
+                >
+                  <span>{s.name}</span>
+                  <span style={{ color: THEME.inkSoft, fontFamily: "'JetBrains Mono', monospace" }}>
+                    {s.className}{s.section ? `-${s.section}` : ""}
+                  </span>
+                </button>
+              ))
+            )}
+          </div>
+        )}
+
+        {selected ? (
+          <div
+            className="mt-4 rounded-sm p-4"
+            style={{ background: THEME.chalk, borderTop: `3px solid ${THEME.marigold}`, border: `1px solid ${THEME.paperDark}` }}
+          >
+            <div className="text-xs uppercase tracking-widest" style={{ color: THEME.inkSoft, letterSpacing: "0.12em" }}>
+              Specimen Record
+            </div>
+            <div className="mt-1 text-xl" style={{ fontFamily: "Fraunces, serif", fontWeight: 600 }}>
+              {selected.name}
+            </div>
+            <div className="mt-2 grid grid-cols-2 gap-y-1 text-sm" style={{ color: THEME.inkSoft }}>
+              <div>Academic Year</div><div>{selected.academicYear || "—"}</div>
+              <div>Class</div><div>{selected.className || "—"}{selected.section ? ` - ${selected.section}` : ""}</div>
+              <div>Roll No</div><div>{selected.rollNo || "—"}</div>
+            </div>
+          </div>
+        ) : (
+          !nameQuery && (
+            <div className="mt-4">
+              <div className="text-xs mb-2" style={{ color: THEME.inkSoft }}>
+                {scoped.length} student{scoped.length === 1 ? "" : "s"} in this scope
+              </div>
+              <div className="max-h-64 overflow-y-auto rounded-sm" style={{ border: `1px solid ${THEME.paperDark}` }}>
+                {scoped.slice(0, 50).map((s, i) => (
+                  <div
+                    key={`${s.name}-${i}`}
+                    className="flex justify-between px-3 py-2 text-sm"
+                    style={{ background: THEME.chalk, borderTop: i ? `1px solid ${THEME.paperDark}` : "none" }}
+                  >
+                    <span>{s.name}</span>
+                    <span style={{ color: THEME.inkSoft, fontFamily: "'JetBrains Mono', monospace" }}>
+                      {s.className}{s.section ? `-${s.section}` : ""} · {s.rollNo}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Timetable — editable weekly grid, persisted
+// ---------------------------------------------------------------------------
+function TimetableTab({ timetable, setTimetable, ready }) {
+  const [editingKey, setEditingKey] = useState(null);
+  const [draft, setDraft] = useState("");
+
+  const openCell = (dayIdx, period) => {
+    const key = `${dayIdx}-${period}`;
+    setEditingKey(key);
+    setDraft(timetable[key] || "");
+  };
+
+  const saveCell = () => {
+    if (!editingKey) return;
+    const next = { ...timetable };
+    if (draft.trim()) next[editingKey] = draft.trim();
+    else delete next[editingKey];
+    setTimetable(next);
+    setEditingKey(null);
+    setDraft("");
+  };
+
+  return (
+    <div>
+      <div className="rounded-sm p-4 sm:p-5" style={{ background: THEME.paper, border: `1px solid ${THEME.paperDark}` }}>
+        <div className="flex items-center justify-between">
+          <h2 className="text-sm font-semibold uppercase tracking-wide" style={{ color: THEME.inkSoft, letterSpacing: "0.1em" }}>
+            Weekly Timetable
+          </h2>
+          <span className="text-xs" style={{ color: THEME.inkSoft }}>
+            {ready ? "Tap a period to edit" : "Loading…"}
+          </span>
+        </div>
+
+        <div className="mt-4 overflow-x-auto">
+          <table className="w-full text-sm border-collapse" style={{ minWidth: 560 }}>
+            <thead>
+              <tr>
+                <th
+                  className="text-left px-2 py-2 text-xs uppercase"
+                  style={{ color: THEME.chalk, background: THEME.boardGreen, letterSpacing: "0.08em" }}
+                >
+                  Period
+                </th>
+                {DAYS.map((d, i) => (
+                  <th
+                    key={d}
+                    className="px-2 py-2 text-xs uppercase"
+                    style={{
+                      color: THEME.chalk,
+                      background: i === TODAY_INDEX ? THEME.marigold : THEME.boardGreen,
+                      letterSpacing: "0.08em",
+                    }}
+                  >
+                    {d}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {PERIODS.map((p) => (
+                <tr key={p}>
+                  <td
+                    className="px-2 py-2 text-xs font-medium"
+                    style={{ background: THEME.paperDark, color: THEME.inkSoft, fontFamily: "'JetBrains Mono', monospace" }}
+                  >
+                    P{p}
+                  </td>
+                  {DAYS.map((_, dayIdx) => {
+                    const key = `${dayIdx}-${p}`;
+                    const value = timetable[key];
+                    const isEditing = editingKey === key;
+                    return (
+                      <td
+                        key={key}
+                        className="px-1.5 py-1.5 align-top"
+                        style={{ background: THEME.chalk, border: `1px solid ${THEME.paperDark}` }}
+                      >
+                        {isEditing ? (
+                          <div className="flex flex-col gap-1">
+                            <input
+                              autoFocus
+                              value={draft}
+                              onChange={(e) => setDraft(e.target.value)}
+                              onKeyDown={(e) => e.key === "Enter" && saveCell()}
+                              placeholder="e.g. 11-A Botany"
+                              className="w-full px-1.5 py-1 text-xs rounded-sm outline-none"
+                              style={{ border: `1px solid ${THEME.moss}` }}
+                            />
+                            <div className="flex gap-1">
+                              <button
+                                onClick={saveCell}
+                                className="flex-1 text-xs py-1 rounded-sm text-white"
+                                style={{ background: THEME.moss }}
+                              >
+                                Save
+                              </button>
+                              <button
+                                onClick={() => setEditingKey(null)}
+                                className="text-xs px-2 py-1 rounded-sm"
+                                style={{ border: `1px solid ${THEME.paperDark}` }}
+                              >
+                                <Icon glyph="x" size={12} />
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <button
+                            onClick={() => openCell(dayIdx, p)}
+                            className="w-full text-left text-xs px-1.5 py-2 rounded-sm" style={{ minHeight: "2.25rem", color: value ? THEME.ink : THEME.paperDark, background: "transparent" }}
+                          >
+                            {value || "+"}
+                          </button>
+                        )}
+                      </td>
+                    );
+                  })}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const root = ReactDOM.createRoot(document.getElementById("root"));
+root.render(<App />);
+</script>
+</body>
+</html>
