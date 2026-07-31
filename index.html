@@ -54,6 +54,9 @@ const ICON_GLYPHS = {
   leaf: "\uD83C\uDF3F",
   x: "\u2715",
   sprout: "\uD83C\uDF31",
+  translate: "\uD83C\uDF10",
+  book: "\uD83D\uDCD6",
+  swap: "\u21C4",
 };
 
 function Icon({ glyph, size = 16, style = {}, className = "" }) {
@@ -85,6 +88,9 @@ const THEME = {
   marigold: "#D4941C",
   marigoldSoft: "#F1D9A6",
   coral: "#C1502E",
+  navy: "#0F2E4C",
+  navySoft: "#1C4A73",
+  skyLight: "#DCEAF5",
 };
 
 const FONTS_IMPORT =
@@ -223,57 +229,38 @@ function App() {
   const [timetable, setTimetable, timetableReady] = usePersistentState("timetable", DEFAULT_TIMETABLE);
   const [exams, setExams, examsReady] = usePersistentState("exams", []);
 
+  const NAV_ITEMS = [
+    { id: "dashboard", label: "Home", icon: "dashboard" },
+    { id: "students", label: "Students", icon: "users" },
+    { id: "timetable", label: "Timetable", icon: "calendar" },
+  ];
+
   return (
     <div
       className="min-h-screen w-full"
-      style={{ background: THEME.chalk, fontFamily: "Inter, sans-serif", color: THEME.ink }}
+      style={{ background: THEME.skyLight, fontFamily: "Inter, sans-serif", color: THEME.ink }}
     >
       <style>{FONTS_IMPORT}</style>
 
-      {/* Nav */}
-      <header style={{ background: THEME.boardGreen }} className="text-white">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 py-4">
-          <div className="flex items-center gap-2">
-            <Icon glyph="sprout" size={20} style={{ color: THEME.marigoldSoft }} />
-            <span
-              className="text-lg sm:text-xl"
+      {/* Header — navy, app-like */}
+      <header style={{ background: THEME.navy }} className="text-white sticky top-0 z-10">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 py-4 flex items-center gap-2">
+          <Icon glyph="sprout" size={20} style={{ color: THEME.marigoldSoft }} />
+          <div>
+            <div
+              className="text-lg sm:text-xl leading-tight"
               style={{ fontFamily: "Fraunces, serif", fontWeight: 600, letterSpacing: "0.01em" }}
             >
               Biology &amp; Botany Desk
-            </span>
+            </div>
+            <div className="text-xs" style={{ color: THEME.skyLight, opacity: 0.8 }}>
+              XI &amp; XII · Tamil Nadu Govt. Higher Secondary School
+            </div>
           </div>
-          <div className="text-xs mt-1" style={{ color: THEME.mossLight }}>
-            XI &amp; XII · Tamil Nadu Govt. Higher Secondary School
-          </div>
-
-          <nav className="flex gap-1 mt-4 -mb-4 overflow-x-auto">
-            {[
-              { id: "dashboard", label: "Dashboard", icon: "dashboard" },
-              { id: "students", label: "Students", icon: "users" },
-              { id: "timetable", label: "Timetable", icon: "calendar" },
-            ].map(({ id, label, icon }) => {
-              const active = tab === id;
-              return (
-                <button
-                  key={id}
-                  onClick={() => setTab(id)}
-                  className="flex items-center gap-1.5 px-3 sm:px-4 py-2.5 text-sm whitespace-nowrap transition-colors"
-                  style={{
-                    color: active ? THEME.chalk : THEME.mossLight,
-                    borderBottom: active ? `2px solid ${THEME.marigold}` : "2px solid transparent",
-                    fontWeight: active ? 600 : 500,
-                  }}
-                >
-                  <Icon glyph={icon} size={15} />
-                  {label}
-                </button>
-              );
-            })}
-          </nav>
         </div>
       </header>
 
-      <main className="max-w-5xl mx-auto px-4 sm:px-6 py-6">
+      <main className="max-w-5xl mx-auto px-4 sm:px-6 py-6" style={{ paddingBottom: "5.5rem" }}>
         {tab === "dashboard" && (
           <DashboardTab
             students={students}
@@ -291,6 +278,29 @@ function App() {
           <TimetableTab timetable={timetable} setTimetable={setTimetable} ready={timetableReady} />
         )}
       </main>
+
+      {/* Bottom nav — fixed, app-like */}
+      <nav
+        className="fixed bottom-0 left-0 right-0 z-10"
+        style={{ background: THEME.navy, borderTop: `1px solid ${THEME.navySoft}` }}
+      >
+        <div className="max-w-5xl mx-auto grid grid-cols-3">
+          {NAV_ITEMS.map(({ id, label, icon }) => {
+            const active = tab === id;
+            return (
+              <button
+                key={id}
+                onClick={() => setTab(id)}
+                className="flex flex-col items-center gap-0.5 py-2.5 text-xs"
+                style={{ color: active ? THEME.marigoldSoft : THEME.skyLight, opacity: active ? 1 : 0.75 }}
+              >
+                <Icon glyph={icon} size={18} />
+                <span style={{ fontWeight: active ? 600 : 500 }}>{label}</span>
+              </button>
+            );
+          })}
+        </div>
+      </nav>
     </div>
   );
 }
@@ -443,6 +453,278 @@ function DashboardTab({ students, timetable, exams, setExams, ready, setTab }) {
               </div>
             ))}
         </div>
+      </div>
+
+      <LeafDivider />
+
+      <LanguageTools />
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Language Tools — translator (English/Tamil/Hindi) + general & botany dictionary
+// ---------------------------------------------------------------------------
+const LANGUAGES = [
+  { code: "en", label: "English" },
+  { code: "ta", label: "Tamil" },
+  { code: "hi", label: "Hindi" },
+];
+
+// A focused biology/botany glossary — searched locally, no internet needed.
+const BOTANY_DICTIONARY = [
+  { term: "Photosynthesis", definition: "The process by which green plants use sunlight to synthesize food from carbon dioxide and water.", ta: "ஒளிச்சேர்க்கை", hi: "प्रकाश संश्लेषण" },
+  { term: "Chlorophyll", definition: "The green pigment in plants responsible for absorbing light for photosynthesis.", ta: "பசுங்கணிகம்", hi: "क्लोरोफिल" },
+  { term: "Stomata", definition: "Tiny pores on a leaf surface that allow gas exchange and water vapor release.", ta: "இலைத்துளை", hi: "रंध्र" },
+  { term: "Xylem", definition: "Plant tissue that conducts water and dissolved minerals from roots to the rest of the plant.", ta: "நீர்க்குழாய் திசு", hi: "जाइलम" },
+  { term: "Phloem", definition: "Plant tissue that transports food (sugars) made in the leaves to other parts of the plant.", ta: "உணவுக்குழாய் திசு", hi: "फ्लोएम" },
+  { term: "Transpiration", definition: "Loss of water vapor from plant leaves, mainly through stomata.", ta: "வேர்வையிடல்", hi: "वाष्पोत्सर्जन" },
+  { term: "Pollination", definition: "Transfer of pollen from the anther to the stigma of a flower.", ta: "மகரந்தச் சேர்க்கை", hi: "परागण" },
+  { term: "Fertilization", definition: "Fusion of male and female gametes to form a zygote.", ta: "கருவுறுதல்", hi: "निषेचन" },
+  { term: "Respiration", definition: "The process of breaking down glucose to release energy, using or not using oxygen.", ta: "சுவாசம்", hi: "श्वसन" },
+  { term: "Mitosis", definition: "Cell division that produces two genetically identical daughter cells.", ta: "சமபிரிவு", hi: "समसूत्री विभाजन" },
+  { term: "Meiosis", definition: "Cell division that produces four genetically different gametes with half the chromosome number.", ta: "குறுக்கல் பிரிவு", hi: "अर्धसूत्री विभाजन" },
+  { term: "Osmosis", definition: "Movement of water across a semi-permeable membrane from a less to a more concentrated solution.", ta: "சவ்வூடு பரவல்", hi: "परासरण" },
+  { term: "Chromosome", definition: "A thread-like structure of DNA that carries genetic information.", ta: "நிறமூர்த்தம்", hi: "गुणसूत्र" },
+  { term: "Genotype", definition: "The genetic makeup of an organism.", ta: "மரபணு அமைப்பு", hi: "जीनोटाइप" },
+  { term: "Phenotype", definition: "The observable physical or biochemical characteristics of an organism.", ta: "தோற்ற இயல்பு", hi: "फीनोटाइप" },
+  { term: "Ecosystem", definition: "A community of living organisms interacting with their physical environment.", ta: "சூழ்நிலைத் தொகுதி", hi: "पारिस्थितिकी तंत्र" },
+  { term: "Taxonomy", definition: "The science of classifying living organisms.", ta: "வகைப்பாட்டியல்", hi: "वर्गिकी" },
+  { term: "Monocot", definition: "A flowering plant with a single seed leaf (cotyledon), e.g. grasses.", ta: "ஒற்றை இலை விதைத் தாவரம்", hi: "एकबीजपत्री" },
+  { term: "Dicot", definition: "A flowering plant with two seed leaves (cotyledons), e.g. beans.", ta: "இரட்டை இலை விதைத் தாவரம்", hi: "द्विबीजपत्री" },
+  { term: "Inflorescence", definition: "The arrangement of flowers on a plant stem.", ta: "மலர் அமைப்பு", hi: "पुष्पक्रम" },
+  { term: "Stamen", definition: "The male reproductive part of a flower, consisting of anther and filament.", ta: "மகரந்தத்தாள்", hi: "पुंकेसर" },
+  { term: "Pistil", definition: "The female reproductive part of a flower, consisting of stigma, style, and ovary.", ta: "சூல் தண்டு", hi: "स्त्रीकेसर" },
+  { term: "Sepal", definition: "The outer, usually green, leaf-like part of a flower that protects the bud.", ta: "புல்லி இதழ்", hi: "बाह्यदल" },
+  { term: "Petal", definition: "One of the often brightly colored parts of a flower's corolla.", ta: "இதழ்", hi: "पंखुड़ी" },
+  { term: "Germination", definition: "The process by which a seed develops into a new plant.", ta: "முளைத்தல்", hi: "अंकुरण" },
+  { term: "Herbarium", definition: "A collection of preserved plant specimens used for study.", ta: "தாவரக் காட்சியகம்", hi: "हर्बेरियम" },
+  { term: "Auxin", definition: "A plant hormone that regulates growth, especially cell elongation.", ta: "தாவர வளர்ச்சி ஹார்மோன் (ஆக்சின்)", hi: "ऑक्सिन" },
+  { term: "Nucleus", definition: "The membrane-bound organelle that contains a cell's genetic material.", ta: "உட்கரு", hi: "केंद्रक" },
+  { term: "Mitochondria", definition: "The organelle responsible for producing energy (ATP) in a cell.", ta: "மைட்டோகாண்ட்ரியா", hi: "माइटोकॉन्ड्रिया" },
+  { term: "Vacuole", definition: "A membrane-bound sac in a cell used for storage, often large in plant cells.", ta: "வெற்றிடம்", hi: "रिक्तिका" },
+];
+
+function LanguageTools() {
+  const [srcLang, setSrcLang] = useState("en");
+  const [tgtLang, setTgtLang] = useState("ta");
+  const [sourceText, setSourceText] = useState("");
+  const [translated, setTranslated] = useState("");
+  const [translating, setTranslating] = useState(false);
+  const [translateError, setTranslateError] = useState(null);
+
+  const [dictMode, setDictMode] = useState("general"); // "general" | "botany"
+  const [word, setWord] = useState("");
+  const [dictResult, setDictResult] = useState(null);
+  const [dictError, setDictError] = useState(null);
+  const [dictLoading, setDictLoading] = useState(false);
+
+  const swapLanguages = () => {
+    setSrcLang(tgtLang);
+    setTgtLang(srcLang);
+    setSourceText(translated);
+    setTranslated(sourceText);
+  };
+
+  const runTranslate = async () => {
+    if (!sourceText.trim()) return;
+    setTranslating(true);
+    setTranslateError(null);
+    setTranslated("");
+    try {
+      const url = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(sourceText.trim())}&langpair=${srcLang}|${tgtLang}`;
+      const res = await fetch(url);
+      const data = await res.json();
+      const text = data?.responseData?.translatedText;
+      if (!text) throw new Error("No translation returned");
+      setTranslated(text);
+    } catch (e) {
+      setTranslateError("Could not translate right now — check your internet connection and try again.");
+    } finally {
+      setTranslating(false);
+    }
+  };
+
+  const runDictionary = async () => {
+    const q = word.trim();
+    if (!q) return;
+    setDictError(null);
+    setDictResult(null);
+
+    if (dictMode === "botany") {
+      const ql = q.toLowerCase();
+      const hits = BOTANY_DICTIONARY.filter((d) => d.term.toLowerCase().includes(ql));
+      if (hits.length === 0) setDictError("No matching biology/botany term found.");
+      else setDictResult({ type: "botany", hits });
+      return;
+    }
+
+    setDictLoading(true);
+    try {
+      const res = await fetch(`https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(q)}`);
+      if (!res.ok) throw new Error("not found");
+      const data = await res.json();
+      const entry = data[0];
+      const meanings = (entry?.meanings || []).slice(0, 3).map((m) => ({
+        partOfSpeech: m.partOfSpeech,
+        definition: m.definitions?.[0]?.definition,
+      }));
+      setDictResult({ type: "general", word: entry?.word || q, phonetic: entry?.phonetic, meanings });
+    } catch (e) {
+      setDictError("No definition found — check spelling or your internet connection.");
+    } finally {
+      setDictLoading(false);
+    }
+  };
+
+  return (
+    <div className="rounded-sm p-4 sm:p-5" style={{ background: THEME.paper, border: `1px solid ${THEME.paperDark}` }}>
+      <h2 className="text-sm font-semibold uppercase tracking-wide flex items-center gap-1.5" style={{ color: THEME.inkSoft, letterSpacing: "0.1em" }}>
+        <Icon glyph="translate" size={14} /> Language Tools
+      </h2>
+      <p className="text-xs mt-1" style={{ color: THEME.inkSoft }}>
+        Translation and general lookups need an internet connection; the biology/botany glossary works offline.
+      </p>
+
+      {/* Translator */}
+      <div className="mt-4">
+        <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto_1fr] gap-2 items-center">
+          <select
+            value={srcLang}
+            onChange={(e) => setSrcLang(e.target.value)}
+            className="px-3 py-2 text-sm rounded-sm outline-none"
+            style={{ border: `1px solid ${THEME.paperDark}`, background: THEME.chalk }}
+          >
+            {LANGUAGES.map((l) => (
+              <option key={l.code} value={l.code}>{l.label}</option>
+            ))}
+          </select>
+          <button
+            onClick={swapLanguages}
+            aria-label="Swap languages"
+            className="mx-auto sm:mx-2 px-2 py-2 rounded-sm"
+            style={{ border: `1px solid ${THEME.paperDark}`, color: THEME.moss }}
+          >
+            <Icon glyph="swap" size={16} />
+          </button>
+          <select
+            value={tgtLang}
+            onChange={(e) => setTgtLang(e.target.value)}
+            className="px-3 py-2 text-sm rounded-sm outline-none"
+            style={{ border: `1px solid ${THEME.paperDark}`, background: THEME.chalk }}
+          >
+            {LANGUAGES.map((l) => (
+              <option key={l.code} value={l.code}>{l.label}</option>
+            ))}
+          </select>
+        </div>
+
+        <textarea
+          value={sourceText}
+          onChange={(e) => setSourceText(e.target.value)}
+          placeholder="Type text to translate…"
+          rows={2}
+          className="w-full mt-2 px-3 py-2 text-sm rounded-sm outline-none resize-none"
+          style={{ border: `1px solid ${THEME.paperDark}`, background: THEME.chalk }}
+        />
+        <button
+          onClick={runTranslate}
+          disabled={translating}
+          className="mt-2 text-sm px-4 py-2 rounded-sm text-white"
+          style={{ background: THEME.navy, opacity: translating ? 0.7 : 1 }}
+        >
+          {translating ? "Translating…" : "Translate"}
+        </button>
+
+        {translateError && (
+          <div className="mt-2 text-xs px-3 py-2 rounded-sm" style={{ background: "#F6E4DD", color: THEME.coral }}>
+            {translateError}
+          </div>
+        )}
+        {translated && (
+          <div className="mt-2 text-sm px-3 py-2 rounded-sm" style={{ background: THEME.chalk, border: `1px solid ${THEME.paperDark}` }}>
+            {translated}
+          </div>
+        )}
+      </div>
+
+      <LeafDivider />
+
+      {/* Dictionary */}
+      <div>
+        <div className="flex gap-1.5">
+          {[
+            { id: "general", label: "English Dictionary" },
+            { id: "botany", label: "Biology/Botany Glossary" },
+          ].map((m) => (
+            <button
+              key={m.id}
+              onClick={() => { setDictMode(m.id); setDictResult(null); setDictError(null); }}
+              className="px-3 py-1.5 text-xs rounded-sm"
+              style={{
+                background: dictMode === m.id ? THEME.navy : THEME.chalk,
+                color: dictMode === m.id ? THEME.chalk : THEME.inkSoft,
+                border: `1px solid ${dictMode === m.id ? THEME.navy : THEME.paperDark}`,
+                fontWeight: dictMode === m.id ? 600 : 500,
+              }}
+            >
+              {m.label}
+            </button>
+          ))}
+        </div>
+
+        <div className="mt-2 flex gap-2">
+          <input
+            value={word}
+            onChange={(e) => setWord(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && runDictionary()}
+            placeholder={dictMode === "botany" ? "e.g. Photosynthesis" : "e.g. Ecosystem"}
+            className="flex-1 px-3 py-2 text-sm rounded-sm outline-none"
+            style={{ border: `1px solid ${THEME.paperDark}`, background: THEME.chalk }}
+          />
+          <button
+            onClick={runDictionary}
+            disabled={dictLoading}
+            className="text-sm px-4 py-2 rounded-sm text-white"
+            style={{ background: THEME.moss, opacity: dictLoading ? 0.7 : 1 }}
+          >
+            <Icon glyph="book" size={14} />
+          </button>
+        </div>
+
+        {dictError && (
+          <div className="mt-2 text-xs px-3 py-2 rounded-sm" style={{ background: "#F6E4DD", color: THEME.coral }}>
+            {dictError}
+          </div>
+        )}
+
+        {dictResult?.type === "general" && (
+          <div className="mt-2 rounded-sm p-3" style={{ background: THEME.chalk, border: `1px solid ${THEME.paperDark}` }}>
+            <div className="text-sm font-semibold" style={{ fontFamily: "Fraunces, serif" }}>
+              {dictResult.word} {dictResult.phonetic && <span className="text-xs font-normal" style={{ color: THEME.inkSoft }}>{dictResult.phonetic}</span>}
+            </div>
+            {dictResult.meanings.map((m, i) => (
+              <div key={i} className="mt-1.5 text-sm" style={{ color: THEME.inkSoft }}>
+                <span className="italic">{m.partOfSpeech}</span> — {m.definition}
+              </div>
+            ))}
+          </div>
+        )}
+
+        {dictResult?.type === "botany" && (
+          <div className="mt-2 space-y-2">
+            {dictResult.hits.map((h) => (
+              <div key={h.term} className="rounded-sm p-3" style={{ background: THEME.chalk, border: `1px solid ${THEME.paperDark}` }}>
+                <div className="text-sm font-semibold" style={{ fontFamily: "Fraunces, serif" }}>{h.term}</div>
+                <div className="mt-1 text-sm" style={{ color: THEME.inkSoft }}>{h.definition}</div>
+                <div className="mt-1.5 text-xs flex gap-3" style={{ color: THEME.moss, fontFamily: "'JetBrains Mono', monospace" }}>
+                  <span>தமிழ்: {h.ta}</span>
+                  <span>हिंदी: {h.hi}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -911,6 +1193,7 @@ function StudentsTab({ students, setStudents, ready }) {
 function TimetableTab({ timetable, setTimetable, ready }) {
   const [editingKey, setEditingKey] = useState(null);
   const [draft, setDraft] = useState("");
+  const [selectedDay, setSelectedDay] = useState(null); // null = full week grid
 
   const openCell = (dayIdx, period) => {
     const key = `${dayIdx}-${period}`;
@@ -940,95 +1223,207 @@ function TimetableTab({ timetable, setTimetable, ready }) {
           </span>
         </div>
 
-        <div className="mt-4 overflow-x-auto">
-          <table className="w-full text-sm border-collapse" style={{ minWidth: 560 }}>
-            <thead>
-              <tr>
-                <th
-                  className="text-left px-2 py-2 text-xs uppercase"
-                  style={{ color: THEME.chalk, background: THEME.boardGreen, letterSpacing: "0.08em" }}
-                >
-                  Period
-                </th>
-                {DAYS.map((d, i) => (
-                  <th
-                    key={d}
-                    className="px-2 py-2 text-xs uppercase"
-                    style={{
-                      color: THEME.chalk,
-                      background: i === TODAY_INDEX ? THEME.marigold : THEME.boardGreen,
-                      letterSpacing: "0.08em",
-                    }}
-                  >
-                    {d}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {PERIODS.map((p) => (
-                <tr key={p}>
-                  <td
-                    className="px-2 py-2 text-xs font-medium"
-                    style={{ background: THEME.paperDark, color: THEME.inkSoft, fontFamily: "'JetBrains Mono', monospace" }}
-                  >
-                    P{p}
-                  </td>
-                  {DAYS.map((_, dayIdx) => {
-                    const key = `${dayIdx}-${p}`;
-                    const value = timetable[key];
-                    const isEditing = editingKey === key;
-                    return (
-                      <td
-                        key={key}
-                        className="px-1.5 py-1.5 align-top"
-                        style={{ background: THEME.chalk, border: `1px solid ${THEME.paperDark}` }}
-                      >
-                        {isEditing ? (
-                          <div className="flex flex-col gap-1">
-                            <input
-                              autoFocus
-                              value={draft}
-                              onChange={(e) => setDraft(e.target.value)}
-                              onKeyDown={(e) => e.key === "Enter" && saveCell()}
-                              placeholder="e.g. 11-A Botany"
-                              className="w-full px-1.5 py-1 text-xs rounded-sm outline-none"
-                              style={{ border: `1px solid ${THEME.moss}` }}
-                            />
-                            <div className="flex gap-1">
-                              <button
-                                onClick={saveCell}
-                                className="flex-1 text-xs py-1 rounded-sm text-white"
-                                style={{ background: THEME.moss }}
-                              >
-                                Save
-                              </button>
-                              <button
-                                onClick={() => setEditingKey(null)}
-                                className="text-xs px-2 py-1 rounded-sm"
-                                style={{ border: `1px solid ${THEME.paperDark}` }}
-                              >
-                                <Icon glyph="x" size={12} />
-                              </button>
-                            </div>
-                          </div>
-                        ) : (
-                          <button
-                            onClick={() => openCell(dayIdx, p)}
-                            className="w-full text-left text-xs px-1.5 py-2 rounded-sm min-h-[2.25rem]"
-                            style={{ color: value ? THEME.ink : THEME.paperDark, background: "transparent" }}
-                          >
-                            {value || "+"}
-                          </button>
-                        )}
-                      </td>
-                    );
-                  })}
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        {/* Day navigator — jump to any day, not just today */}
+        <div className="flex gap-1.5 mt-4 overflow-x-auto pb-1">
+          <button
+            onClick={() => setSelectedDay(null)}
+            className="px-3 py-1.5 text-xs rounded-sm whitespace-nowrap"
+            style={{
+              background: selectedDay === null ? THEME.boardGreen : THEME.chalk,
+              color: selectedDay === null ? THEME.chalk : THEME.inkSoft,
+              border: `1px solid ${selectedDay === null ? THEME.boardGreen : THEME.paperDark}`,
+              fontWeight: selectedDay === null ? 600 : 500,
+            }}
+          >
+            Full Week
+          </button>
+          {DAYS.map((d, i) => {
+            const active = selectedDay === i;
+            const isToday = i === TODAY_INDEX;
+            return (
+              <button
+                key={d}
+                onClick={() => setSelectedDay(i)}
+                className="px-3 py-1.5 text-xs rounded-sm whitespace-nowrap"
+                style={{
+                  background: active ? THEME.marigold : THEME.chalk,
+                  color: active ? THEME.chalk : THEME.inkSoft,
+                  border: `1px solid ${active ? THEME.marigold : isToday ? THEME.moss : THEME.paperDark}`,
+                  fontWeight: active || isToday ? 600 : 500,
+                }}
+              >
+                {d}{isToday ? " •" : ""}
+              </button>
+            );
+          })}
         </div>
+
+        {selectedDay === null ? (
+          <div className="mt-4 overflow-x-auto">
+            <table className="w-full text-sm border-collapse" style={{ minWidth: 560 }}>
+              <thead>
+                <tr>
+                  <th
+                    className="text-left px-2 py-2 text-xs uppercase"
+                    style={{ color: THEME.chalk, background: THEME.boardGreen, letterSpacing: "0.08em" }}
+                  >
+                    Period
+                  </th>
+                  {DAYS.map((d, i) => (
+                    <th
+                      key={d}
+                      className="px-2 py-2 text-xs uppercase cursor-pointer"
+                      onClick={() => setSelectedDay(i)}
+                      style={{
+                        color: THEME.chalk,
+                        background: i === TODAY_INDEX ? THEME.marigold : THEME.boardGreen,
+                        letterSpacing: "0.08em",
+                      }}
+                    >
+                      {d}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {PERIODS.map((p) => (
+                  <tr key={p}>
+                    <td
+                      className="px-2 py-2 text-xs font-medium"
+                      style={{ background: THEME.paperDark, color: THEME.inkSoft, fontFamily: "'JetBrains Mono', monospace" }}
+                    >
+                      P{p}
+                    </td>
+                    {DAYS.map((_, dayIdx) => {
+                      const key = `${dayIdx}-${p}`;
+                      const value = timetable[key];
+                      const isEditing = editingKey === key;
+                      return (
+                        <td
+                          key={key}
+                          className="px-1.5 py-1.5 align-top"
+                          style={{ background: THEME.chalk, border: `1px solid ${THEME.paperDark}` }}
+                        >
+                          {isEditing ? (
+                            <div className="flex flex-col gap-1">
+                              <input
+                                autoFocus
+                                value={draft}
+                                onChange={(e) => setDraft(e.target.value)}
+                                onKeyDown={(e) => e.key === "Enter" && saveCell()}
+                                placeholder="e.g. 11-A Botany"
+                                className="w-full px-1.5 py-1 text-xs rounded-sm outline-none"
+                                style={{ border: `1px solid ${THEME.moss}` }}
+                              />
+                              <div className="flex gap-1">
+                                <button
+                                  onClick={saveCell}
+                                  className="flex-1 text-xs py-1 rounded-sm text-white"
+                                  style={{ background: THEME.moss }}
+                                >
+                                  Save
+                                </button>
+                                <button
+                                  onClick={() => setEditingKey(null)}
+                                  className="text-xs px-2 py-1 rounded-sm"
+                                  style={{ border: `1px solid ${THEME.paperDark}` }}
+                                >
+                                  <Icon glyph="x" size={12} />
+                                </button>
+                              </div>
+                            </div>
+                          ) : (
+                            <button
+                              onClick={() => openCell(dayIdx, p)}
+                              className="w-full text-left text-xs px-1.5 py-2 rounded-sm"
+                              style={{ minHeight: "2.25rem", color: value ? THEME.ink : THEME.paperDark, background: "transparent" }}
+                            >
+                              {value || "+"}
+                            </button>
+                          )}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div className="mt-4">
+            <div className="flex items-center justify-between mb-2">
+              <button
+                onClick={() => setSelectedDay((d) => (d - 1 + DAYS.length) % DAYS.length)}
+                className="px-3 py-1.5 text-xs rounded-sm"
+                style={{ border: `1px solid ${THEME.paperDark}`, color: THEME.inkSoft }}
+              >
+                ← {DAYS[(selectedDay - 1 + DAYS.length) % DAYS.length]}
+              </button>
+              <div className="text-sm font-semibold" style={{ color: THEME.ink, fontFamily: "Fraunces, serif" }}>
+                {DAYS[selectedDay]}{selectedDay === TODAY_INDEX ? " (Today)" : ""}
+              </div>
+              <button
+                onClick={() => setSelectedDay((d) => (d + 1) % DAYS.length)}
+                className="px-3 py-1.5 text-xs rounded-sm"
+                style={{ border: `1px solid ${THEME.paperDark}`, color: THEME.inkSoft }}
+              >
+                {DAYS[(selectedDay + 1) % DAYS.length]} →
+              </button>
+            </div>
+            <div className="rounded-sm overflow-hidden" style={{ border: `1px solid ${THEME.paperDark}` }}>
+              {PERIODS.map((p, i) => {
+                const key = `${selectedDay}-${p}`;
+                const value = timetable[key];
+                const isEditing = editingKey === key;
+                return (
+                  <div
+                    key={p}
+                    className="flex items-center gap-3 px-3 py-2.5"
+                    style={{ background: i % 2 ? THEME.paper : THEME.chalk, borderTop: i ? `1px solid ${THEME.paperDark}` : "none" }}
+                  >
+                    <div
+                      className="text-xs font-medium w-10 shrink-0"
+                      style={{ color: THEME.inkSoft, fontFamily: "'JetBrains Mono', monospace" }}
+                    >
+                      P{p}
+                    </div>
+                    {isEditing ? (
+                      <div className="flex-1 flex gap-2">
+                        <input
+                          autoFocus
+                          value={draft}
+                          onChange={(e) => setDraft(e.target.value)}
+                          onKeyDown={(e) => e.key === "Enter" && saveCell()}
+                          placeholder="e.g. 11-A Botany"
+                          className="flex-1 px-2 py-1.5 text-sm rounded-sm outline-none"
+                          style={{ border: `1px solid ${THEME.moss}` }}
+                        />
+                        <button onClick={saveCell} className="text-xs px-3 py-1.5 rounded-sm text-white" style={{ background: THEME.moss }}>
+                          Save
+                        </button>
+                        <button
+                          onClick={() => setEditingKey(null)}
+                          className="text-xs px-2 py-1.5 rounded-sm"
+                          style={{ border: `1px solid ${THEME.paperDark}` }}
+                        >
+                          <Icon glyph="x" size={12} />
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => openCell(selectedDay, p)}
+                        className="flex-1 text-left text-sm px-2 py-1.5 rounded-sm"
+                        style={{ color: value ? THEME.ink : THEME.inkSoft }}
+                      >
+                        {value || "+ Add class"}
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
