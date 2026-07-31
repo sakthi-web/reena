@@ -76,21 +76,21 @@ function Icon({ glyph, size = 16, style = {}, className = "" }) {
 // Core Tailwind utilities only allowed, so custom hexes live here.
 // ---------------------------------------------------------------------------
 const THEME = {
-  boardGreen: "#16281C",
-  boardGreenSoft: "#1F3626",
-  moss: "#5C7A52",
-  mossLight: "#8CA478",
-  paper: "#EEF1E2",
-  paperDark: "#E2E6D2",
-  ink: "#1B2A1E",
-  inkSoft: "#4A5A4C",
-  chalk: "#F6F7F0",
-  marigold: "#D4941C",
-  marigoldSoft: "#F1D9A6",
+  boardGreen: "#3C6B32",
+  boardGreenSoft: "#4C7F3F",
+  moss: "#5E9147",
+  mossLight: "#8FC46C",
+  paper: "#FFFFFF",
+  paperDark: "#E9ECE2",
+  ink: "#232B21",
+  inkSoft: "#75806F",
+  chalk: "#F7F8F3",
+  marigold: "#DD7E2B",
+  marigoldSoft: "#FBE6CC",
   coral: "#C1502E",
-  navy: "#0F2E4C",
-  navySoft: "#1C4A73",
-  skyLight: "#DCEAF5",
+  navy: "#FFFFFF",
+  navySoft: "#EDEFE6",
+  skyLight: "#FAFAF6",
 };
 
 const FONTS_IMPORT =
@@ -180,15 +180,16 @@ function SpecimenCard({ eyebrow, title, value, sub, accent, onClick }) {
           onClick();
         }
       }}
-      className="rounded-sm p-5 flex-1 min-w-0 transition-transform"
+      className="rounded-2xl p-5 flex-1 min-w-0 transition-shadow"
       style={{
         background: THEME.paper,
         border: `1px solid ${THEME.paperDark}`,
         borderTop: `3px solid ${accent || THEME.moss}`,
+        boxShadow: "0 1px 3px rgba(35,43,33,0.05)",
         cursor: onClick ? "pointer" : "default",
       }}
-      onMouseEnter={(e) => onClick && (e.currentTarget.style.borderColor = accent || THEME.moss)}
-      onMouseLeave={(e) => onClick && (e.currentTarget.style.borderColor = THEME.paperDark)}
+      onMouseEnter={(e) => onClick && (e.currentTarget.style.boxShadow = "0 6px 16px rgba(35,43,33,0.10)")}
+      onMouseLeave={(e) => onClick && (e.currentTarget.style.boxShadow = "0 1px 3px rgba(35,43,33,0.05)")}
     >
       <div
         className="text-xs uppercase font-semibold tracking-widest"
@@ -242,18 +243,26 @@ function App() {
     >
       <style>{FONTS_IMPORT}</style>
 
-      {/* Header — navy, app-like */}
-      <header style={{ background: THEME.navy }} className="text-white sticky top-0 z-10">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 py-4 flex items-center gap-2">
-          <Icon glyph="sprout" size={20} style={{ color: THEME.marigoldSoft }} />
+      {/* Header — clean white nav bar, botanical-store styling */}
+      <header
+        style={{ background: THEME.paper, borderBottom: `1px solid ${THEME.paperDark}`, boxShadow: "0 1px 3px rgba(35,43,33,0.04)" }}
+        className="sticky top-0 z-10"
+      >
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 py-3.5 flex items-center gap-2.5">
+          <div
+            className="flex items-center justify-center rounded-full"
+            style={{ width: 34, height: 34, background: THEME.chalk, border: `1px solid ${THEME.paperDark}` }}
+          >
+            <Icon glyph="sprout" size={17} style={{ color: THEME.moss }} />
+          </div>
           <div>
             <div
               className="text-lg sm:text-xl leading-tight"
-              style={{ fontFamily: "Fraunces, serif", fontWeight: 600, letterSpacing: "0.01em" }}
+              style={{ fontFamily: "Fraunces, serif", fontWeight: 600, letterSpacing: "0.01em", color: THEME.ink }}
             >
               Biology &amp; Botany Desk
             </div>
-            <div className="text-xs" style={{ color: THEME.skyLight, opacity: 0.8 }}>
+            <div className="text-xs" style={{ color: THEME.inkSoft }}>
               XI &amp; XII · Tamil Nadu Govt. Higher Secondary School
             </div>
           </div>
@@ -279,10 +288,10 @@ function App() {
         )}
       </main>
 
-      {/* Bottom nav — fixed, app-like */}
+      {/* Bottom nav — fixed, clean white tab bar */}
       <nav
         className="fixed bottom-0 left-0 right-0 z-10"
-        style={{ background: THEME.navy, borderTop: `1px solid ${THEME.navySoft}` }}
+        style={{ background: THEME.paper, borderTop: `1px solid ${THEME.paperDark}`, boxShadow: "0 -2px 8px rgba(35,43,33,0.05)" }}
       >
         <div className="max-w-5xl mx-auto grid grid-cols-3">
           {NAV_ITEMS.map(({ id, label, icon }) => {
@@ -292,7 +301,7 @@ function App() {
                 key={id}
                 onClick={() => setTab(id)}
                 className="flex flex-col items-center gap-0.5 py-2.5 text-xs"
-                style={{ color: active ? THEME.marigoldSoft : THEME.skyLight, opacity: active ? 1 : 0.75 }}
+                style={{ color: active ? THEME.moss : THEME.inkSoft, opacity: active ? 1 : 0.85 }}
               >
                 <Icon glyph={icon} size={18} />
                 <span style={{ fontWeight: active ? 600 : 500 }}>{label}</span>
@@ -381,14 +390,14 @@ function DashboardTab({ students, timetable, exams, setExams, ready, setTab }) {
 
       <LeafDivider />
 
-      <div ref={examSectionRef} className="rounded-sm p-4 sm:p-5" style={{ background: THEME.paper, border: `1px solid ${THEME.paperDark}` }}>
+      <div ref={examSectionRef} className="rounded-2xl p-4 sm:p-5" style={{ background: THEME.paper, border: `1px solid ${THEME.paperDark}`, boxShadow: "0 1px 3px rgba(35,43,33,0.05)" }}>
         <div className="flex items-center justify-between">
           <h2 className="text-sm font-semibold uppercase tracking-wide" style={{ color: THEME.inkSoft, letterSpacing: "0.1em" }}>
             Exam Register
           </h2>
           <button
             onClick={() => setShowExamForm((s) => !s)}
-            className="flex items-center gap-1 text-sm px-3 py-1.5 rounded-sm text-white"
+            className="flex items-center gap-1 text-sm px-3 py-1.5 rounded-full text-white"
             style={{ background: THEME.boardGreen }}
           >
             {showExamForm ? <Icon glyph="x" size={14} /> : <Icon glyph="plus" size={14} />}
@@ -402,13 +411,13 @@ function DashboardTab({ students, timetable, exams, setExams, ready, setTab }) {
               value={examName}
               onChange={(e) => setExamName(e.target.value)}
               placeholder="Exam name (e.g. Botany Unit Test)"
-              className="sm:col-span-2 px-3 py-2 text-sm rounded-sm outline-none"
+              className="sm:col-span-2 px-3 py-2 text-sm rounded-lg outline-none"
               style={{ border: `1px solid ${THEME.paperDark}`, background: THEME.chalk }}
             />
             <select
               value={examClass}
               onChange={(e) => setExamClass(e.target.value)}
-              className="px-3 py-2 text-sm rounded-sm outline-none"
+              className="px-3 py-2 text-sm rounded-lg outline-none"
               style={{ border: `1px solid ${THEME.paperDark}`, background: THEME.chalk }}
             >
               <option>11th</option>
@@ -418,12 +427,12 @@ function DashboardTab({ students, timetable, exams, setExams, ready, setTab }) {
               type="date"
               value={examDate}
               onChange={(e) => setExamDate(e.target.value)}
-              className="px-3 py-2 text-sm rounded-sm outline-none"
+              className="px-3 py-2 text-sm rounded-lg outline-none"
               style={{ border: `1px solid ${THEME.paperDark}`, background: THEME.chalk }}
             />
             <button
               onClick={addExam}
-              className="sm:col-span-4 mt-1 text-sm px-3 py-2 rounded-sm text-white"
+              className="sm:col-span-4 mt-1 text-sm px-3 py-2 rounded-full text-white"
               style={{ background: THEME.marigold }}
             >
               Save exam
@@ -578,7 +587,7 @@ function LanguageTools() {
   };
 
   return (
-    <div className="rounded-sm p-4 sm:p-5" style={{ background: THEME.paper, border: `1px solid ${THEME.paperDark}` }}>
+    <div className="rounded-2xl p-4 sm:p-5" style={{ background: THEME.paper, border: `1px solid ${THEME.paperDark}`, boxShadow: "0 1px 3px rgba(35,43,33,0.05)" }}>
       <h2 className="text-sm font-semibold uppercase tracking-wide flex items-center gap-1.5" style={{ color: THEME.inkSoft, letterSpacing: "0.1em" }}>
         <Icon glyph="translate" size={14} /> Language Tools
       </h2>
@@ -592,7 +601,7 @@ function LanguageTools() {
           <select
             value={srcLang}
             onChange={(e) => setSrcLang(e.target.value)}
-            className="px-3 py-2 text-sm rounded-sm outline-none"
+            className="px-3 py-2 text-sm rounded-lg outline-none"
             style={{ border: `1px solid ${THEME.paperDark}`, background: THEME.chalk }}
           >
             {LANGUAGES.map((l) => (
@@ -602,7 +611,7 @@ function LanguageTools() {
           <button
             onClick={swapLanguages}
             aria-label="Swap languages"
-            className="mx-auto sm:mx-2 px-2 py-2 rounded-sm"
+            className="mx-auto sm:mx-2 px-2 py-2 rounded-lg"
             style={{ border: `1px solid ${THEME.paperDark}`, color: THEME.moss }}
           >
             <Icon glyph="swap" size={16} />
@@ -610,7 +619,7 @@ function LanguageTools() {
           <select
             value={tgtLang}
             onChange={(e) => setTgtLang(e.target.value)}
-            className="px-3 py-2 text-sm rounded-sm outline-none"
+            className="px-3 py-2 text-sm rounded-lg outline-none"
             style={{ border: `1px solid ${THEME.paperDark}`, background: THEME.chalk }}
           >
             {LANGUAGES.map((l) => (
@@ -624,25 +633,25 @@ function LanguageTools() {
           onChange={(e) => setSourceText(e.target.value)}
           placeholder="Type text to translate…"
           rows={2}
-          className="w-full mt-2 px-3 py-2 text-sm rounded-sm outline-none resize-none"
+          className="w-full mt-2 px-3 py-2 text-sm rounded-lg outline-none resize-none"
           style={{ border: `1px solid ${THEME.paperDark}`, background: THEME.chalk }}
         />
         <button
           onClick={runTranslate}
           disabled={translating}
-          className="mt-2 text-sm px-4 py-2 rounded-sm text-white"
-          style={{ background: THEME.navy, opacity: translating ? 0.7 : 1 }}
+          className="mt-2 text-sm px-4 py-2 rounded-full text-white"
+          style={{ background: THEME.boardGreen, opacity: translating ? 0.7 : 1 }}
         >
           {translating ? "Translating…" : "Translate"}
         </button>
 
         {translateError && (
-          <div className="mt-2 text-xs px-3 py-2 rounded-sm" style={{ background: "#F6E4DD", color: THEME.coral }}>
+          <div className="mt-2 text-xs px-3 py-2 rounded-lg" style={{ background: "#F6E4DD", color: THEME.coral }}>
             {translateError}
           </div>
         )}
         {translated && (
-          <div className="mt-2 text-sm px-3 py-2 rounded-sm" style={{ background: THEME.chalk, border: `1px solid ${THEME.paperDark}` }}>
+          <div className="mt-2 text-sm px-3 py-2 rounded-lg" style={{ background: THEME.chalk, border: `1px solid ${THEME.paperDark}` }}>
             {translated}
           </div>
         )}
@@ -660,11 +669,11 @@ function LanguageTools() {
             <button
               key={m.id}
               onClick={() => { setDictMode(m.id); setDictResult(null); setDictError(null); }}
-              className="px-3 py-1.5 text-xs rounded-sm"
+              className="px-3 py-1.5 text-xs rounded-full"
               style={{
-                background: dictMode === m.id ? THEME.navy : THEME.chalk,
+                background: dictMode === m.id ? THEME.boardGreen : THEME.chalk,
                 color: dictMode === m.id ? THEME.chalk : THEME.inkSoft,
-                border: `1px solid ${dictMode === m.id ? THEME.navy : THEME.paperDark}`,
+                border: `1px solid ${dictMode === m.id ? THEME.boardGreen : THEME.paperDark}`,
                 fontWeight: dictMode === m.id ? 600 : 500,
               }}
             >
@@ -679,13 +688,13 @@ function LanguageTools() {
             onChange={(e) => setWord(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && runDictionary()}
             placeholder={dictMode === "botany" ? "e.g. Photosynthesis" : "e.g. Ecosystem"}
-            className="flex-1 px-3 py-2 text-sm rounded-sm outline-none"
+            className="flex-1 px-3 py-2 text-sm rounded-lg outline-none"
             style={{ border: `1px solid ${THEME.paperDark}`, background: THEME.chalk }}
           />
           <button
             onClick={runDictionary}
             disabled={dictLoading}
-            className="text-sm px-4 py-2 rounded-sm text-white"
+            className="text-sm px-4 py-2 rounded-full text-white"
             style={{ background: THEME.moss, opacity: dictLoading ? 0.7 : 1 }}
           >
             <Icon glyph="book" size={14} />
@@ -693,13 +702,13 @@ function LanguageTools() {
         </div>
 
         {dictError && (
-          <div className="mt-2 text-xs px-3 py-2 rounded-sm" style={{ background: "#F6E4DD", color: THEME.coral }}>
+          <div className="mt-2 text-xs px-3 py-2 rounded-lg" style={{ background: "#F6E4DD", color: THEME.coral }}>
             {dictError}
           </div>
         )}
 
         {dictResult?.type === "general" && (
-          <div className="mt-2 rounded-sm p-3" style={{ background: THEME.chalk, border: `1px solid ${THEME.paperDark}` }}>
+          <div className="mt-2 rounded-lg p-3" style={{ background: THEME.chalk, border: `1px solid ${THEME.paperDark}` }}>
             <div className="text-sm font-semibold" style={{ fontFamily: "Fraunces, serif" }}>
               {dictResult.word} {dictResult.phonetic && <span className="text-xs font-normal" style={{ color: THEME.inkSoft }}>{dictResult.phonetic}</span>}
             </div>
@@ -714,7 +723,7 @@ function LanguageTools() {
         {dictResult?.type === "botany" && (
           <div className="mt-2 space-y-2">
             {dictResult.hits.map((h) => (
-              <div key={h.term} className="rounded-sm p-3" style={{ background: THEME.chalk, border: `1px solid ${THEME.paperDark}` }}>
+              <div key={h.term} className="rounded-lg p-3" style={{ background: THEME.chalk, border: `1px solid ${THEME.paperDark}` }}>
                 <div className="text-sm font-semibold" style={{ fontFamily: "Fraunces, serif" }}>{h.term}</div>
                 <div className="mt-1 text-sm" style={{ color: THEME.inkSoft }}>{h.definition}</div>
                 <div className="mt-1.5 text-xs flex gap-3" style={{ color: THEME.moss, fontFamily: "'JetBrains Mono', monospace" }}>
@@ -915,7 +924,7 @@ function StudentsTab({ students, setStudents, ready }) {
   return (
     <div>
       {/* Import */}
-      <div className="rounded-sm p-4 sm:p-5" style={{ background: THEME.paper, border: `1px solid ${THEME.paperDark}` }}>
+      <div className="rounded-2xl p-4 sm:p-5" style={{ background: THEME.paper, border: `1px solid ${THEME.paperDark}`, boxShadow: "0 1px 3px rgba(35,43,33,0.05)" }}>
         <h2 className="text-sm font-semibold uppercase tracking-wide" style={{ color: THEME.inkSoft, letterSpacing: "0.1em" }}>
           Import Student List
         </h2>
@@ -926,7 +935,7 @@ function StudentsTab({ students, setStudents, ready }) {
         <div className="mt-3 flex flex-col sm:flex-row items-start sm:items-center gap-3">
           <button
             onClick={() => fileRef.current?.click()}
-            className="flex items-center gap-2 text-sm px-4 py-2 rounded-sm text-white"
+            className="flex items-center gap-2 text-sm px-4 py-2 rounded-full text-white"
             style={{ background: THEME.boardGreen }}
           >
             <Icon glyph="upload" size={15} />
@@ -950,7 +959,7 @@ function StudentsTab({ students, setStudents, ready }) {
           )}
         </div>
         {importError && (
-          <div className="mt-3 text-xs px-3 py-2 rounded-sm" style={{ background: "#F6E4DD", color: THEME.coral }}>
+          <div className="mt-3 text-xs px-3 py-2 rounded-lg" style={{ background: "#F6E4DD", color: THEME.coral }}>
             {importError}
           </div>
         )}
@@ -961,7 +970,7 @@ function StudentsTab({ students, setStudents, ready }) {
           </div>
         )}
         {columns.some((c) => SENSITIVE_HINT_KEYWORDS.some((k) => c.toLowerCase().includes(k))) && (
-          <div className="mt-3 text-xs px-3 py-2 rounded-sm" style={{ background: THEME.marigoldSoft, color: THEME.ink }}>
+          <div className="mt-3 text-xs px-3 py-2 rounded-lg" style={{ background: THEME.marigoldSoft, color: THEME.ink }}>
             This list includes sensitive personal details (Aadhaar, contact, address, family info). Keep this
             device secure and avoid hosting this data publicly.
           </div>
@@ -971,7 +980,7 @@ function StudentsTab({ students, setStudents, ready }) {
       <LeafDivider />
 
       {/* Filters */}
-      <div className="rounded-sm p-4 sm:p-5" style={{ background: THEME.paper, border: `1px solid ${THEME.paperDark}` }}>
+      <div className="rounded-2xl p-4 sm:p-5" style={{ background: THEME.paper, border: `1px solid ${THEME.paperDark}`, boxShadow: "0 1px 3px rgba(35,43,33,0.05)" }}>
         <h2 className="text-sm font-semibold uppercase tracking-wide" style={{ color: THEME.inkSoft, letterSpacing: "0.1em" }}>
           Find Students
         </h2>
@@ -985,7 +994,7 @@ function StudentsTab({ students, setStudents, ready }) {
               setSection("");
               setSelected(null);
             }}
-            className="px-3 py-2 text-sm rounded-sm outline-none"
+            className="px-3 py-2 text-sm rounded-lg outline-none"
             style={{ border: `1px solid ${THEME.paperDark}`, background: THEME.chalk }}
           >
             <option value="">Academic year — all</option>
@@ -1001,7 +1010,7 @@ function StudentsTab({ students, setStudents, ready }) {
               setSection("");
               setSelected(null);
             }}
-            className="px-3 py-2 text-sm rounded-sm outline-none"
+            className="px-3 py-2 text-sm rounded-lg outline-none"
             style={{ border: `1px solid ${THEME.paperDark}`, background: THEME.chalk }}
           >
             <option value="">Class — all</option>
@@ -1016,7 +1025,7 @@ function StudentsTab({ students, setStudents, ready }) {
               setSection(e.target.value);
               setSelected(null);
             }}
-            className="px-3 py-2 text-sm rounded-sm outline-none"
+            className="px-3 py-2 text-sm rounded-lg outline-none"
             style={{ border: `1px solid ${THEME.paperDark}`, background: THEME.chalk }}
           >
             <option value="">Section — all</option>
@@ -1034,14 +1043,14 @@ function StudentsTab({ students, setStudents, ready }) {
                 setSelected(null);
               }}
               placeholder="Student name…"
-              className="w-full pl-8 pr-3 py-2 text-sm rounded-sm outline-none"
+              className="w-full pl-8 pr-3 py-2 text-sm rounded-lg outline-none"
               style={{ border: `1px solid ${THEME.paperDark}`, background: THEME.chalk }}
             />
           </div>
         </div>
 
         {nameQuery && !selected && (
-          <div className="mt-2 rounded-sm overflow-hidden" style={{ border: `1px solid ${THEME.paperDark}` }}>
+          <div className="mt-2 rounded-lg overflow-hidden" style={{ border: `1px solid ${THEME.paperDark}` }}>
             {matches.length === 0 ? (
               <div className="text-sm px-3 py-2" style={{ color: THEME.inkSoft, background: THEME.chalk }}>
                 No matching students in this scope.
@@ -1066,7 +1075,7 @@ function StudentsTab({ students, setStudents, ready }) {
 
         {selected ? (
           <div
-            className="mt-4 rounded-sm p-4"
+            className="mt-4 rounded-lg p-4"
             style={{ background: THEME.chalk, borderTop: `3px solid ${THEME.marigold}`, border: `1px solid ${THEME.paperDark}` }}
           >
             <div className="flex items-center justify-between">
@@ -1103,7 +1112,7 @@ function StudentsTab({ students, setStudents, ready }) {
                   <select
                     value={pageSize}
                     onChange={(e) => setPageSize(Number(e.target.value))}
-                    className="px-2 py-1 text-xs rounded-sm outline-none"
+                    className="px-2 py-1 text-xs rounded-lg outline-none"
                     style={{ border: `1px solid ${THEME.paperDark}`, background: THEME.chalk }}
                   >
                     {PAGE_SIZE_OPTIONS.map((n) => (
@@ -1113,7 +1122,7 @@ function StudentsTab({ students, setStudents, ready }) {
                 </div>
               </div>
 
-              <div className="overflow-x-auto rounded-sm" style={{ border: `1px solid ${THEME.paperDark}` }}>
+              <div className="overflow-x-auto rounded-lg" style={{ border: `1px solid ${THEME.paperDark}` }}>
                 <table className="text-xs border-collapse" style={{ minWidth: Math.max(480, columns.length * 130) }}>
                   <thead>
                     <tr>
@@ -1163,7 +1172,7 @@ function StudentsTab({ students, setStudents, ready }) {
                     <button
                       onClick={() => setPage((p) => Math.max(1, p - 1))}
                       disabled={page <= 1}
-                      className="px-3 py-1 rounded-sm"
+                      className="px-3 py-1 rounded-lg"
                       style={{ border: `1px solid ${THEME.paperDark}`, opacity: page <= 1 ? 0.5 : 1 }}
                     >
                       Prev
@@ -1171,7 +1180,7 @@ function StudentsTab({ students, setStudents, ready }) {
                     <button
                       onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
                       disabled={page >= totalPages}
-                      className="px-3 py-1 rounded-sm"
+                      className="px-3 py-1 rounded-lg"
                       style={{ border: `1px solid ${THEME.paperDark}`, opacity: page >= totalPages ? 0.5 : 1 }}
                     >
                       Next
@@ -1213,7 +1222,7 @@ function TimetableTab({ timetable, setTimetable, ready }) {
 
   return (
     <div>
-      <div className="rounded-sm p-4 sm:p-5" style={{ background: THEME.paper, border: `1px solid ${THEME.paperDark}` }}>
+      <div className="rounded-2xl p-4 sm:p-5" style={{ background: THEME.paper, border: `1px solid ${THEME.paperDark}`, boxShadow: "0 1px 3px rgba(35,43,33,0.05)" }}>
         <div className="flex items-center justify-between">
           <h2 className="text-sm font-semibold uppercase tracking-wide" style={{ color: THEME.inkSoft, letterSpacing: "0.1em" }}>
             Weekly Timetable
@@ -1227,7 +1236,7 @@ function TimetableTab({ timetable, setTimetable, ready }) {
         <div className="flex gap-1.5 mt-4 overflow-x-auto pb-1">
           <button
             onClick={() => setSelectedDay(null)}
-            className="px-3 py-1.5 text-xs rounded-sm whitespace-nowrap"
+            className="px-3 py-1.5 text-xs rounded-full whitespace-nowrap"
             style={{
               background: selectedDay === null ? THEME.boardGreen : THEME.chalk,
               color: selectedDay === null ? THEME.chalk : THEME.inkSoft,
@@ -1244,7 +1253,7 @@ function TimetableTab({ timetable, setTimetable, ready }) {
               <button
                 key={d}
                 onClick={() => setSelectedDay(i)}
-                className="px-3 py-1.5 text-xs rounded-sm whitespace-nowrap"
+                className="px-3 py-1.5 text-xs rounded-full whitespace-nowrap"
                 style={{
                   background: active ? THEME.marigold : THEME.chalk,
                   color: active ? THEME.chalk : THEME.inkSoft,
@@ -1312,20 +1321,20 @@ function TimetableTab({ timetable, setTimetable, ready }) {
                                 onChange={(e) => setDraft(e.target.value)}
                                 onKeyDown={(e) => e.key === "Enter" && saveCell()}
                                 placeholder="e.g. 11-A Botany"
-                                className="w-full px-1.5 py-1 text-xs rounded-sm outline-none"
+                                className="w-full px-1.5 py-1 text-xs rounded-lg outline-none"
                                 style={{ border: `1px solid ${THEME.moss}` }}
                               />
                               <div className="flex gap-1">
                                 <button
                                   onClick={saveCell}
-                                  className="flex-1 text-xs py-1 rounded-sm text-white"
+                                  className="flex-1 text-xs py-1 rounded-lg text-white"
                                   style={{ background: THEME.moss }}
                                 >
                                   Save
                                 </button>
                                 <button
                                   onClick={() => setEditingKey(null)}
-                                  className="text-xs px-2 py-1 rounded-sm"
+                                  className="text-xs px-2 py-1 rounded-lg"
                                   style={{ border: `1px solid ${THEME.paperDark}` }}
                                 >
                                   <Icon glyph="x" size={12} />
@@ -1335,7 +1344,7 @@ function TimetableTab({ timetable, setTimetable, ready }) {
                           ) : (
                             <button
                               onClick={() => openCell(dayIdx, p)}
-                              className="w-full text-left text-xs px-1.5 py-2 rounded-sm"
+                              className="w-full text-left text-xs px-1.5 py-2 rounded-lg"
                               style={{ minHeight: "2.25rem", color: value ? THEME.ink : THEME.paperDark, background: "transparent" }}
                             >
                               {value || "+"}
@@ -1354,7 +1363,7 @@ function TimetableTab({ timetable, setTimetable, ready }) {
             <div className="flex items-center justify-between mb-2">
               <button
                 onClick={() => setSelectedDay((d) => (d - 1 + DAYS.length) % DAYS.length)}
-                className="px-3 py-1.5 text-xs rounded-sm"
+                className="px-3 py-1.5 text-xs rounded-lg"
                 style={{ border: `1px solid ${THEME.paperDark}`, color: THEME.inkSoft }}
               >
                 ← {DAYS[(selectedDay - 1 + DAYS.length) % DAYS.length]}
@@ -1364,13 +1373,13 @@ function TimetableTab({ timetable, setTimetable, ready }) {
               </div>
               <button
                 onClick={() => setSelectedDay((d) => (d + 1) % DAYS.length)}
-                className="px-3 py-1.5 text-xs rounded-sm"
+                className="px-3 py-1.5 text-xs rounded-lg"
                 style={{ border: `1px solid ${THEME.paperDark}`, color: THEME.inkSoft }}
               >
                 {DAYS[(selectedDay + 1) % DAYS.length]} →
               </button>
             </div>
-            <div className="rounded-sm overflow-hidden" style={{ border: `1px solid ${THEME.paperDark}` }}>
+            <div className="rounded-lg overflow-hidden" style={{ border: `1px solid ${THEME.paperDark}` }}>
               {PERIODS.map((p, i) => {
                 const key = `${selectedDay}-${p}`;
                 const value = timetable[key];
@@ -1395,15 +1404,15 @@ function TimetableTab({ timetable, setTimetable, ready }) {
                           onChange={(e) => setDraft(e.target.value)}
                           onKeyDown={(e) => e.key === "Enter" && saveCell()}
                           placeholder="e.g. 11-A Botany"
-                          className="flex-1 px-2 py-1.5 text-sm rounded-sm outline-none"
+                          className="flex-1 px-2 py-1.5 text-sm rounded-lg outline-none"
                           style={{ border: `1px solid ${THEME.moss}` }}
                         />
-                        <button onClick={saveCell} className="text-xs px-3 py-1.5 rounded-sm text-white" style={{ background: THEME.moss }}>
+                        <button onClick={saveCell} className="text-xs px-3 py-1.5 rounded-lg text-white" style={{ background: THEME.moss }}>
                           Save
                         </button>
                         <button
                           onClick={() => setEditingKey(null)}
-                          className="text-xs px-2 py-1.5 rounded-sm"
+                          className="text-xs px-2 py-1.5 rounded-lg"
                           style={{ border: `1px solid ${THEME.paperDark}` }}
                         >
                           <Icon glyph="x" size={12} />
@@ -1412,7 +1421,7 @@ function TimetableTab({ timetable, setTimetable, ready }) {
                     ) : (
                       <button
                         onClick={() => openCell(selectedDay, p)}
-                        className="flex-1 text-left text-sm px-2 py-1.5 rounded-sm"
+                        className="flex-1 text-left text-sm px-2 py-1.5 rounded-lg"
                         style={{ color: value ? THEME.ink : THEME.inkSoft }}
                       >
                         {value || "+ Add class"}
