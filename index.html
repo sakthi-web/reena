@@ -425,20 +425,60 @@ function DashboardTab({ students, timetable, exams, setExams, ready }) {
 // Students — import + cascading search
 // ---------------------------------------------------------------------------
 function normalizeRow(row) {
-  const get = (names) => {
-    for (const key of Object.keys(row)) {
-      const k = key.trim().toLowerCase();
-      if (names.includes(k)) return String(row[key] ?? "").trim();
+  const keys = Object.keys(row);
+  const norm = (k) => k.trim().toLowerCase();
+
+  const findKey = (exactMatchers, substringMatchers, exclude = []) => {
+    for (const key of keys) {
+      if (exactMatchers.includes(norm(key))) return key;
     }
-    return "";
+    for (const key of keys) {
+      const k = norm(key);
+      if (exclude.some((ex) => k.includes(ex))) continue;
+      if (substringMatchers.some((m) => k.includes(m))) return key;
+    }
+    return null;
   };
+
+  const val = (key) => (key ? String(row[key] ?? "").trim() : "");
+
+  const nameKey = findKey(
+    ["student name", "name", "studentname", "name of the student"],
+    ["name of the student", "student name", "name"],
+    ["bank", "branch", "account", "father", "mother", "guardian"]
+  );
+  const yearKey = findKey(["academic year", "academicyear", "year"], ["academic year", "year"]);
+  const classKey = findKey(["class", "std", "standard"], ["class", "standard"]);
+  const sectionKey = findKey(["section", "sec"], ["section"]);
+  const rollKey = findKey(["roll no", "rollno", "roll number", "roll_no", "roll"], ["roll"]);
+  const emisKey = findKey(["emis id", "old emis id", "emis"], ["emis"]);
+  const accountNoKey = findKey(["account number", "account no", "acc no"], ["account no", "account number"]);
+  const ifscKey = findKey(["ifsc code", "ifsc"], ["ifsc"]);
+  const bankKey = findKey(["bank name", "bank"], ["bank"]);
+  const branchKey = findKey(["branch name", "branch"], ["branch"]);
+  const accountTypeKey = findKey(["account type"], ["account type"]);
+
   return {
-    academicYear: get(["academic year", "academicyear", "year"]),
-    className: get(["class", "std", "standard"]),
-    section: get(["section", "sec"]),
-    rollNo: get(["roll no", "rollno", "roll number", "roll_no", "roll"]),
-    name: get(["student name", "name", "studentname"]),
+    name: val(nameKey),
+    academicYear: val(yearKey),
+    className: val(classKey),
+    section: val(sectionKey),
+    rollNo: val(rollKey),
+    emisId: val(emisKey),
+    accountNumber: val(accountNoKey),
+    ifsc: val(ifscKey),
+    bankName: val(bankKey),
+    branchName: val(branchKey),
+    accountType: val(accountTypeKey),
   };
+}
+
+function studentMeta(s) {
+  const bits = [];
+  if (s.className) bits.push(s.className + (s.section ? `-${s.section}` : ""));
+  if (s.rollNo) bits.push(`Roll ${s.rollNo}`);
+  if (!s.className && !s.rollNo && s.emisId) bits.push(`EMIS ${s.emisId}`);
+  return bits.join(" · ");
 }
 
 function StudentsTab({ students, setStudents, ready }) {
@@ -493,7 +533,7 @@ function StudentsTab({ students, setStudents, ready }) {
       const normalized = rows.map(normalizeRow).filter((r) => r.name);
       if (normalized.length === 0) {
         setImportError(
-          "No student rows found. Check the header row has columns like Academic Year, Class, Section, Roll No, Student Name."
+          "No student rows found. Make sure there's a header row with a student name column (e.g. 'Student Name' or 'Name of the Student')."
         );
       } else {
         await setStudents(normalized);
@@ -516,7 +556,8 @@ function StudentsTab({ students, setStudents, ready }) {
           Import Student List
         </h2>
         <p className="text-xs mt-1" style={{ color: THEME.inkSoft }}>
-          Columns expected: Academic Year, Class, Section, Roll No, Student Name.
+          Works with class rosters (Academic Year, Class, Section, Roll No, Student Name) or account/EMIS
+          sheets (Name, EMIS Id, Account Number, IFSC, Bank, Branch) — columns are detected automatically.
         </p>
         <div className="mt-3 flex flex-col sm:flex-row items-start sm:items-center gap-3">
           <button
@@ -627,7 +668,7 @@ function StudentsTab({ students, setStudents, ready }) {
                 >
                   <span>{s.name}</span>
                   <span style={{ color: THEME.inkSoft, fontFamily: "'JetBrains Mono', monospace" }}>
-                    {s.className}{s.section ? `-${s.section}` : ""}
+                    {studentMeta(s)}
                   </span>
                 </button>
               ))
@@ -647,9 +688,17 @@ function StudentsTab({ students, setStudents, ready }) {
               {selected.name}
             </div>
             <div className="mt-2 grid grid-cols-2 gap-y-1 text-sm" style={{ color: THEME.inkSoft }}>
-              <div>Academic Year</div><div>{selected.academicYear || "—"}</div>
-              <div>Class</div><div>{selected.className || "—"}{selected.section ? ` - ${selected.section}` : ""}</div>
-              <div>Roll No</div><div>{selected.rollNo || "—"}</div>
+              {selected.academicYear && (<><div>Academic Year</div><div>{selected.academicYear}</div></>)}
+              {(selected.className || selected.section) && (
+                <><div>Class</div><div>{selected.className || "—"}{selected.section ? ` - ${selected.section}` : ""}</div></>
+              )}
+              {selected.rollNo && (<><div>Roll No</div><div>{selected.rollNo}</div></>)}
+              {selected.emisId && (<><div>EMIS Id</div><div>{selected.emisId}</div></>)}
+              {selected.accountNumber && (<><div>Account No</div><div>{selected.accountNumber}</div></>)}
+              {selected.bankName && (<><div>Bank</div><div>{selected.bankName}</div></>)}
+              {selected.branchName && (<><div>Branch</div><div>{selected.branchName}</div></>)}
+              {selected.ifsc && (<><div>IFSC</div><div>{selected.ifsc}</div></>)}
+              {selected.accountType && (<><div>Account Type</div><div>{selected.accountType}</div></>)}
             </div>
           </div>
         ) : (
@@ -667,7 +716,7 @@ function StudentsTab({ students, setStudents, ready }) {
                   >
                     <span>{s.name}</span>
                     <span style={{ color: THEME.inkSoft, fontFamily: "'JetBrains Mono', monospace" }}>
-                      {s.className}{s.section ? `-${s.section}` : ""} · {s.rollNo}
+                      {studentMeta(s)}
                     </span>
                   </div>
                 ))}
