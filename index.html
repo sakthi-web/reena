@@ -39,8 +39,9 @@ const storage = {
   },
 };
 
+
 // ---------------------------------------------------------------------------
-// Lightweight icon glyphs (no external icon library needed for GitHub Pages)
+// Lightweight icon glyphs (no external icon library dependency)
 // ---------------------------------------------------------------------------
 const ICON_GLYPHS = {
   dashboard: "\u25A6",
@@ -66,7 +67,6 @@ function Icon({ glyph, size = 16, style = {}, className = "" }) {
     </span>
   );
 }
-
 
 // ---------------------------------------------------------------------------
 // Theme — herbarium specimen sheet meets a Tamil Nadu classroom chalkboard.
@@ -162,15 +162,27 @@ function LeafDivider() {
   );
 }
 
-function SpecimenCard({ eyebrow, title, value, sub, accent }) {
+function SpecimenCard({ eyebrow, title, value, sub, accent, onClick }) {
   return (
     <div
-      className="rounded-sm p-5 flex-1 min-w-0"
+      role={onClick ? "button" : undefined}
+      tabIndex={onClick ? 0 : undefined}
+      onClick={onClick}
+      onKeyDown={(e) => {
+        if (onClick && (e.key === "Enter" || e.key === " ")) {
+          e.preventDefault();
+          onClick();
+        }
+      }}
+      className="rounded-sm p-5 flex-1 min-w-0 transition-transform"
       style={{
         background: THEME.paper,
         border: `1px solid ${THEME.paperDark}`,
         borderTop: `3px solid ${accent || THEME.moss}`,
+        cursor: onClick ? "pointer" : "default",
       }}
+      onMouseEnter={(e) => onClick && (e.currentTarget.style.borderColor = accent || THEME.moss)}
+      onMouseLeave={(e) => onClick && (e.currentTarget.style.borderColor = THEME.paperDark)}
     >
       <div
         className="text-xs uppercase font-semibold tracking-widest"
@@ -190,6 +202,11 @@ function SpecimenCard({ eyebrow, title, value, sub, accent }) {
       {sub && (
         <div className="mt-3 text-xs" style={{ color: THEME.moss, fontFamily: "'JetBrains Mono', monospace" }}>
           {sub}
+        </div>
+      )}
+      {onClick && (
+        <div className="mt-2 text-xs font-medium" style={{ color: accent || THEME.moss }}>
+          View →
         </div>
       )}
     </div>
@@ -264,6 +281,7 @@ function App() {
             exams={exams}
             setExams={setExams}
             ready={studentsReady && timetableReady && examsReady}
+            setTab={setTab}
           />
         )}
         {tab === "students" && (
@@ -280,11 +298,12 @@ function App() {
 // ---------------------------------------------------------------------------
 // Dashboard
 // ---------------------------------------------------------------------------
-function DashboardTab({ students, timetable, exams, setExams, ready }) {
+function DashboardTab({ students, timetable, exams, setExams, ready, setTab }) {
   const [showExamForm, setShowExamForm] = useState(false);
   const [examName, setExamName] = useState("");
   const [examClass, setExamClass] = useState("11th");
   const [examDate, setExamDate] = useState("");
+  const examSectionRef = useRef(null);
 
   const totalStudents = students.length;
 
@@ -316,6 +335,11 @@ function DashboardTab({ students, timetable, exams, setExams, ready }) {
 
   const removeExam = (id) => setExams(exams.filter((e) => e.id !== id));
 
+  const goToExams = () => {
+    setShowExamForm(true);
+    examSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+
   return (
     <div>
       <div className="flex flex-col sm:flex-row gap-4">
@@ -325,6 +349,7 @@ function DashboardTab({ students, timetable, exams, setExams, ready }) {
           value={ready ? totalStudents : "…"}
           sub={totalStudents === 0 ? "Import an Excel sheet to begin" : "across XI & XII"}
           accent={THEME.moss}
+          onClick={() => setTab("students")}
         />
         <SpecimenCard
           eyebrow={todayLabel}
@@ -332,6 +357,7 @@ function DashboardTab({ students, timetable, exams, setExams, ready }) {
           value={ready ? classesToday : "…"}
           sub={TODAY_INDEX === -1 ? "No periods on Sunday" : "from your timetable"}
           accent={THEME.marigold}
+          onClick={() => setTab("timetable")}
         />
         <SpecimenCard
           eyebrow="Ahead"
@@ -339,12 +365,13 @@ function DashboardTab({ students, timetable, exams, setExams, ready }) {
           value={ready ? upcoming.length : "…"}
           sub={upcoming[0] ? `Next: ${upcoming[0].name} · ${upcoming[0].date}` : "Nothing scheduled"}
           accent={THEME.coral}
+          onClick={goToExams}
         />
       </div>
 
       <LeafDivider />
 
-      <div className="rounded-sm p-4 sm:p-5" style={{ background: THEME.paper, border: `1px solid ${THEME.paperDark}` }}>
+      <div ref={examSectionRef} className="rounded-sm p-4 sm:p-5" style={{ background: THEME.paper, border: `1px solid ${THEME.paperDark}` }}>
         <div className="flex items-center justify-between">
           <h2 className="text-sm font-semibold uppercase tracking-wide" style={{ color: THEME.inkSoft, letterSpacing: "0.1em" }}>
             Exam Register
@@ -424,62 +451,86 @@ function DashboardTab({ students, timetable, exams, setExams, ready }) {
 // ---------------------------------------------------------------------------
 // Students — import + cascading search
 // ---------------------------------------------------------------------------
-function normalizeRow(row) {
-  const keys = Object.keys(row);
-  const norm = (k) => k.trim().toLowerCase();
+const SENSITIVE_HINT_KEYWORDS = ["aadhaar", "phone", "email", "address", "religion", "father", "mother"];
 
-  const findKey = (exactMatchers, substringMatchers, exclude = []) => {
-    for (const key of keys) {
-      if (exactMatchers.includes(norm(key))) return key;
-    }
-    for (const key of keys) {
-      const k = norm(key);
-      if (exclude.some((ex) => k.includes(ex))) continue;
-      if (substringMatchers.some((m) => k.includes(m))) return key;
-    }
-    return null;
-  };
+function detectAcademicYear(fileName) {
+  const m = String(fileName || "").match(/(20\d{2})\s*[-_/]\s*(\d{2,4})/);
+  if (!m) return "";
+  let end = m[2];
+  if (end.length === 4) end = end.slice(2);
+  return `${m[1]}-${end}`;
+}
 
-  const val = (key) => (key ? String(row[key] ?? "").trim() : "");
+function findHeaderKey(headers, exactList, substrList = [], excludeList = []) {
+  const norm = (h) => h.trim().toLowerCase();
+  for (const h of headers) {
+    if (exactList.includes(norm(h))) return h;
+  }
+  for (const h of headers) {
+    const hh = norm(h);
+    if (excludeList.some((ex) => hh.includes(ex))) continue;
+    if (substrList.some((s) => hh.includes(s))) return h;
+  }
+  return null;
+}
 
-  const nameKey = findKey(
-    ["student name", "name", "studentname", "name of the student"],
-    ["name of the student", "student name", "name"],
-    ["bank", "branch", "account", "father", "mother", "guardian"]
+// Parses every column present in the sheet (not a fixed set), tags each row
+// with metadata used for filtering (_year from the filename, _name/_class/_section
+// detected from headers), and preserves original column order for display.
+function parseSheetRows(sheet, fileName) {
+  const raw = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "" });
+  if (!raw.length) return [];
+  const headerRow = raw[0].map((h) => String(h ?? "").trim());
+  const colIdxs = headerRow.map((h, i) => ({ h, i })).filter((c) => c.h);
+  const columns = colIdxs.map((c) => c.h);
+
+  const nameKey = findHeaderKey(
+    columns,
+    ["name", "student name"],
+    ["name"],
+    ["tamil", "father", "mother", "bank", "branch", "account"]
   );
-  const yearKey = findKey(["academic year", "academicyear", "year"], ["academic year", "year"]);
-  const classKey = findKey(["class", "std", "standard"], ["class", "standard"]);
-  const sectionKey = findKey(["section", "sec"], ["section"]);
-  const rollKey = findKey(["roll no", "rollno", "roll number", "roll_no", "roll"], ["roll"]);
-  const emisKey = findKey(["emis id", "old emis id", "emis"], ["emis"]);
-  const accountNoKey = findKey(["account number", "account no", "acc no"], ["account no", "account number"]);
-  const ifscKey = findKey(["ifsc code", "ifsc"], ["ifsc"]);
-  const bankKey = findKey(["bank name", "bank"], ["bank"]);
-  const branchKey = findKey(["branch name", "branch"], ["branch"]);
-  const accountTypeKey = findKey(["account type"], ["account type"]);
+  const classKey = findHeaderKey(columns, ["class", "std", "standard"], ["class", "standard"]);
+  const sectionKey = findHeaderKey(columns, ["section", "sec"], ["section"]);
+  const year = detectAcademicYear(fileName);
 
-  return {
-    name: val(nameKey),
-    academicYear: val(yearKey),
-    className: val(classKey),
-    section: val(sectionKey),
-    rollNo: val(rollKey),
-    emisId: val(emisKey),
-    accountNumber: val(accountNoKey),
-    ifsc: val(ifscKey),
-    bankName: val(bankKey),
-    branchName: val(branchKey),
-    accountType: val(accountTypeKey),
-  };
+  return raw
+    .slice(1)
+    .filter((r) => r.some((c) => String(c ?? "").trim() !== ""))
+    .map((r, idx) => {
+      const obj = {};
+      colIdxs.forEach(({ h, i }) => {
+        obj[h] = String(r[i] ?? "").trim();
+      });
+      return {
+        ...obj,
+        _id: `${year}|${idx}|${nameKey ? obj[nameKey] : idx}`,
+        _year: year || "Unspecified",
+        _name: nameKey ? obj[nameKey] : "",
+        _class: classKey ? obj[classKey] : "",
+        _section: sectionKey ? obj[sectionKey] : "",
+      };
+    })
+    .filter((r) => r._name);
 }
 
-function studentMeta(s) {
-  const bits = [];
-  if (s.className) bits.push(s.className + (s.section ? `-${s.section}` : ""));
-  if (s.rollNo) bits.push(`Roll ${s.rollNo}`);
-  if (!s.className && !s.rollNo && s.emisId) bits.push(`EMIS ${s.emisId}`);
-  return bits.join(" · ");
+// Original column names in first-seen order, ignoring our internal _fields.
+function rowColumns(rows) {
+  const seen = [];
+  const set = new Set();
+  for (const r of rows) {
+    for (const k of Object.keys(r)) {
+      if (k.startsWith("_")) continue;
+      if (!set.has(k)) {
+        set.add(k);
+        seen.push(k);
+      }
+    }
+  }
+  return seen;
 }
+
+const PAGE_SIZE_OPTIONS = [10, 25, 50, 100];
 
 function StudentsTab({ students, setStudents, ready }) {
   const fileRef = useRef(null);
@@ -489,32 +540,59 @@ function StudentsTab({ students, setStudents, ready }) {
 
   const [year, setYear] = useState("");
   const [className, setClassName] = useState("");
+  const [section, setSection] = useState("");
   const [nameQuery, setNameQuery] = useState("");
   const [selected, setSelected] = useState(null);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
 
   const years = useMemo(
-    () => [...new Set(students.map((s) => s.academicYear).filter(Boolean))].sort(),
+    () => [...new Set(students.map((s) => s._year).filter(Boolean))].sort().reverse(),
     [students]
   );
   const classes = useMemo(
     () =>
-      [...new Set(students.filter((s) => !year || s.academicYear === year).map((s) => s.className).filter(Boolean))].sort(),
+      [...new Set(students.filter((s) => !year || s._year === year).map((s) => s._class).filter(Boolean))].sort(),
     [students, year]
+  );
+  const sections = useMemo(
+    () =>
+      [...new Set(
+        students
+          .filter((s) => (!year || s._year === year) && (!className || s._class === className))
+          .map((s) => s._section)
+          .filter(Boolean)
+      )].sort(),
+    [students, year, className]
   );
 
   const scoped = useMemo(
     () =>
       students.filter(
-        (s) => (!year || s.academicYear === year) && (!className || s.className === className)
+        (s) =>
+          (!year || s._year === year) &&
+          (!className || s._class === className) &&
+          (!section || s._section === section)
       ),
-    [students, year, className]
+    [students, year, className, section]
   );
 
   const matches = useMemo(() => {
     if (!nameQuery.trim()) return [];
     const q = nameQuery.trim().toLowerCase();
-    return scoped.filter((s) => s.name.toLowerCase().includes(q)).slice(0, 8);
+    return scoped.filter((s) => s._name.toLowerCase().includes(q)).slice(0, 8);
   }, [scoped, nameQuery]);
+
+  const columns = useMemo(() => rowColumns(scoped), [scoped]);
+  const totalPages = Math.max(1, Math.ceil(scoped.length / pageSize));
+  const pageRows = useMemo(
+    () => scoped.slice((page - 1) * pageSize, page * pageSize),
+    [scoped, page, pageSize]
+  );
+
+  useEffect(() => {
+    setPage(1);
+  }, [year, className, section, pageSize, students]);
 
   const handleFile = async (file) => {
     if (!file) return;
@@ -529,14 +607,18 @@ function StudentsTab({ students, setStudents, ready }) {
         throw new Error("No sheets found in this file.");
       }
       const sheet = wb.Sheets[wb.SheetNames[0]];
-      const rows = XLSX.utils.sheet_to_json(sheet, { defval: "" });
-      const normalized = rows.map(normalizeRow).filter((r) => r.name);
-      if (normalized.length === 0) {
+      const rows = parseSheetRows(sheet, file.name);
+      if (rows.length === 0) {
         setImportError(
-          "No student rows found. Make sure there's a header row with a student name column (e.g. 'Student Name' or 'Name of the Student')."
+          "No student rows found. Make sure there's a header row with a student name column (e.g. 'Name' or 'Student Name')."
         );
       } else {
-        await setStudents(normalized);
+        const importedYear = rows[0]._year;
+        const others = students.filter((s) => s._year !== importedYear);
+        await setStudents([...others, ...rows]);
+        setYear(importedYear === "Unspecified" ? "" : importedYear);
+        setClassName("");
+        setSection("");
       }
     } catch (e) {
       console.error("Excel import failed:", e);
@@ -556,8 +638,8 @@ function StudentsTab({ students, setStudents, ready }) {
           Import Student List
         </h2>
         <p className="text-xs mt-1" style={{ color: THEME.inkSoft }}>
-          Works with class rosters (Academic Year, Class, Section, Roll No, Student Name) or account/EMIS
-          sheets (Name, EMIS Id, Account Number, IFSC, Bank, Branch) — columns are detected automatically.
+          Every column in the sheet is imported as-is. Academic year is read from the file name (e.g.
+          "…2025-26…" or "…2026_2027…") — name the file accordingly before uploading.
         </p>
         <div className="mt-3 flex flex-col sm:flex-row items-start sm:items-center gap-3">
           <button
@@ -592,25 +674,33 @@ function StudentsTab({ students, setStudents, ready }) {
         )}
         {ready && students.length > 0 && (
           <div className="mt-3 text-xs" style={{ color: THEME.inkSoft }}>
-            {students.length} students on record from your last import.
+            {students.length} students on record across {years.length} academic year{years.length === 1 ? "" : "s"}.
+            Re-uploading a file replaces only that year's data.
+          </div>
+        )}
+        {columns.some((c) => SENSITIVE_HINT_KEYWORDS.some((k) => c.toLowerCase().includes(k))) && (
+          <div className="mt-3 text-xs px-3 py-2 rounded-sm" style={{ background: THEME.marigoldSoft, color: THEME.ink }}>
+            This list includes sensitive personal details (Aadhaar, contact, address, family info). Keep this
+            device secure and avoid hosting this data publicly.
           </div>
         )}
       </div>
 
       <LeafDivider />
 
-      {/* Search */}
+      {/* Filters */}
       <div className="rounded-sm p-4 sm:p-5" style={{ background: THEME.paper, border: `1px solid ${THEME.paperDark}` }}>
         <h2 className="text-sm font-semibold uppercase tracking-wide" style={{ color: THEME.inkSoft, letterSpacing: "0.1em" }}>
-          Find a Student
+          Find Students
         </h2>
 
-        <div className="mt-3 grid grid-cols-1 sm:grid-cols-3 gap-2">
+        <div className="mt-3 grid grid-cols-1 sm:grid-cols-4 gap-2">
           <select
             value={year}
             onChange={(e) => {
               setYear(e.target.value);
               setClassName("");
+              setSection("");
               setSelected(null);
             }}
             className="px-3 py-2 text-sm rounded-sm outline-none"
@@ -626,6 +716,7 @@ function StudentsTab({ students, setStudents, ready }) {
             value={className}
             onChange={(e) => {
               setClassName(e.target.value);
+              setSection("");
               setSelected(null);
             }}
             className="px-3 py-2 text-sm rounded-sm outline-none"
@@ -634,6 +725,21 @@ function StudentsTab({ students, setStudents, ready }) {
             <option value="">Class — all</option>
             {classes.map((c) => (
               <option key={c} value={c}>{c}</option>
+            ))}
+          </select>
+
+          <select
+            value={section}
+            onChange={(e) => {
+              setSection(e.target.value);
+              setSelected(null);
+            }}
+            className="px-3 py-2 text-sm rounded-sm outline-none"
+            style={{ border: `1px solid ${THEME.paperDark}`, background: THEME.chalk }}
+          >
+            <option value="">Section — all</option>
+            {sections.map((s) => (
+              <option key={s} value={s}>{s}</option>
             ))}
           </select>
 
@@ -661,14 +767,14 @@ function StudentsTab({ students, setStudents, ready }) {
             ) : (
               matches.map((s, i) => (
                 <button
-                  key={`${s.name}-${i}`}
+                  key={s._id}
                   onClick={() => setSelected(s)}
                   className="w-full text-left px-3 py-2 text-sm flex justify-between"
                   style={{ background: THEME.chalk, borderTop: i ? `1px solid ${THEME.paperDark}` : "none" }}
                 >
-                  <span>{s.name}</span>
+                  <span>{s._name}</span>
                   <span style={{ color: THEME.inkSoft, fontFamily: "'JetBrains Mono', monospace" }}>
-                    {studentMeta(s)}
+                    {s._class}{s._section ? `-${s._section}` : ""}
                   </span>
                 </button>
               ))
@@ -681,46 +787,116 @@ function StudentsTab({ students, setStudents, ready }) {
             className="mt-4 rounded-sm p-4"
             style={{ background: THEME.chalk, borderTop: `3px solid ${THEME.marigold}`, border: `1px solid ${THEME.paperDark}` }}
           >
-            <div className="text-xs uppercase tracking-widest" style={{ color: THEME.inkSoft, letterSpacing: "0.12em" }}>
-              Specimen Record
+            <div className="flex items-center justify-between">
+              <div className="text-xs uppercase tracking-widest" style={{ color: THEME.inkSoft, letterSpacing: "0.12em" }}>
+                Specimen Record
+              </div>
+              <button onClick={() => setSelected(null)} aria-label="Close">
+                <Icon glyph="x" size={14} style={{ color: THEME.inkSoft }} />
+              </button>
             </div>
             <div className="mt-1 text-xl" style={{ fontFamily: "Fraunces, serif", fontWeight: 600 }}>
-              {selected.name}
+              {selected._name}
             </div>
             <div className="mt-2 grid grid-cols-2 gap-y-1 text-sm" style={{ color: THEME.inkSoft }}>
-              {selected.academicYear && (<><div>Academic Year</div><div>{selected.academicYear}</div></>)}
-              {(selected.className || selected.section) && (
-                <><div>Class</div><div>{selected.className || "—"}{selected.section ? ` - ${selected.section}` : ""}</div></>
-              )}
-              {selected.rollNo && (<><div>Roll No</div><div>{selected.rollNo}</div></>)}
-              {selected.emisId && (<><div>EMIS Id</div><div>{selected.emisId}</div></>)}
-              {selected.accountNumber && (<><div>Account No</div><div>{selected.accountNumber}</div></>)}
-              {selected.bankName && (<><div>Bank</div><div>{selected.bankName}</div></>)}
-              {selected.branchName && (<><div>Branch</div><div>{selected.branchName}</div></>)}
-              {selected.ifsc && (<><div>IFSC</div><div>{selected.ifsc}</div></>)}
-              {selected.accountType && (<><div>Account Type</div><div>{selected.accountType}</div></>)}
+              {rowColumns([selected])
+                .filter((k) => selected[k])
+                .map((k) => (
+                  <React.Fragment key={k}>
+                    <div>{k}</div>
+                    <div>{selected[k]}</div>
+                  </React.Fragment>
+                ))}
             </div>
           </div>
         ) : (
           !nameQuery && (
             <div className="mt-4">
-              <div className="text-xs mb-2" style={{ color: THEME.inkSoft }}>
-                {scoped.length} student{scoped.length === 1 ? "" : "s"} in this scope
-              </div>
-              <div className="max-h-64 overflow-y-auto rounded-sm" style={{ border: `1px solid ${THEME.paperDark}` }}>
-                {scoped.slice(0, 50).map((s, i) => (
-                  <div
-                    key={`${s.name}-${i}`}
-                    className="flex justify-between px-3 py-2 text-sm"
-                    style={{ background: THEME.chalk, borderTop: i ? `1px solid ${THEME.paperDark}` : "none" }}
+              <div className="flex items-center justify-between mb-2">
+                <div className="text-xs" style={{ color: THEME.inkSoft }}>
+                  {scoped.length} student{scoped.length === 1 ? "" : "s"} in this scope
+                </div>
+                <div className="flex items-center gap-1.5 text-xs" style={{ color: THEME.inkSoft }}>
+                  Rows per page
+                  <select
+                    value={pageSize}
+                    onChange={(e) => setPageSize(Number(e.target.value))}
+                    className="px-2 py-1 text-xs rounded-sm outline-none"
+                    style={{ border: `1px solid ${THEME.paperDark}`, background: THEME.chalk }}
                   >
-                    <span>{s.name}</span>
-                    <span style={{ color: THEME.inkSoft, fontFamily: "'JetBrains Mono', monospace" }}>
-                      {studentMeta(s)}
-                    </span>
-                  </div>
-                ))}
+                    {PAGE_SIZE_OPTIONS.map((n) => (
+                      <option key={n} value={n}>{n}</option>
+                    ))}
+                  </select>
+                </div>
               </div>
+
+              <div className="overflow-x-auto rounded-sm" style={{ border: `1px solid ${THEME.paperDark}` }}>
+                <table className="text-xs border-collapse" style={{ minWidth: Math.max(480, columns.length * 130) }}>
+                  <thead>
+                    <tr>
+                      {columns.map((c) => (
+                        <th
+                          key={c}
+                          className="text-left px-2 py-2 whitespace-nowrap"
+                          style={{ background: THEME.boardGreen, color: THEME.chalk }}
+                        >
+                          {c}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {pageRows.map((s, i) => (
+                      <tr
+                        key={s._id}
+                        onClick={() => setSelected(s)}
+                        className="cursor-pointer"
+                        style={{ background: i % 2 ? THEME.paper : THEME.chalk }}
+                      >
+                        {columns.map((c) => (
+                          <td key={c} className="px-2 py-1.5 whitespace-nowrap" style={{ borderTop: `1px solid ${THEME.paperDark}` }}>
+                            {s[c] || "—"}
+                          </td>
+                        ))}
+                      </tr>
+                    ))}
+                    {pageRows.length === 0 && (
+                      <tr>
+                        <td className="px-2 py-3 text-center" colSpan={columns.length || 1} style={{ color: THEME.inkSoft }}>
+                          No students to show.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+
+              {scoped.length > 0 && (
+                <div className="flex items-center justify-between mt-2 text-xs" style={{ color: THEME.inkSoft }}>
+                  <span>
+                    Page {page} of {totalPages}
+                  </span>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setPage((p) => Math.max(1, p - 1))}
+                      disabled={page <= 1}
+                      className="px-3 py-1 rounded-sm"
+                      style={{ border: `1px solid ${THEME.paperDark}`, opacity: page <= 1 ? 0.5 : 1 }}
+                    >
+                      Prev
+                    </button>
+                    <button
+                      onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                      disabled={page >= totalPages}
+                      className="px-3 py-1 rounded-sm"
+                      style={{ border: `1px solid ${THEME.paperDark}`, opacity: page >= totalPages ? 0.5 : 1 }}
+                    >
+                      Next
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           )
         )}
@@ -839,7 +1015,8 @@ function TimetableTab({ timetable, setTimetable, ready }) {
                         ) : (
                           <button
                             onClick={() => openCell(dayIdx, p)}
-                            className="w-full text-left text-xs px-1.5 py-2 rounded-sm" style={{ minHeight: "2.25rem", color: value ? THEME.ink : THEME.paperDark, background: "transparent" }}
+                            className="w-full text-left text-xs px-1.5 py-2 rounded-sm min-h-[2.25rem]"
+                            style={{ color: value ? THEME.ink : THEME.paperDark, background: "transparent" }}
                           >
                             {value || "+"}
                           </button>
