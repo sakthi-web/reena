@@ -76,21 +76,27 @@ function Icon({ glyph, size = 16, style = {}, className = "" }) {
 // Core Tailwind utilities only allowed, so custom hexes live here.
 // ---------------------------------------------------------------------------
 const THEME = {
-  boardGreen: "#3C6B32",
-  boardGreenSoft: "#4C7F3F",
-  moss: "#5E9147",
-  mossLight: "#8FC46C",
+  boardGreen: "#16281C",
+  boardGreenSoft: "#1F3626",
+  moss: "#5C7A52",
+  mossLight: "#8CA478",
   paper: "#FFFFFF",
-  paperDark: "#E9ECE2",
-  ink: "#232B21",
-  inkSoft: "#75806F",
-  chalk: "#F7F8F3",
-  marigold: "#DD7E2B",
-  marigoldSoft: "#FBE6CC",
+  paperDark: "#D9DED2",
+  ink: "#20281F",
+  inkSoft: "#5C6B57",
+  chalk: "#E7EDE1",
+  marigold: "#D4941C",
+  marigoldSoft: "#F1D9A6",
   coral: "#C1502E",
-  navy: "#FFFFFF",
-  navySoft: "#EDEFE6",
-  skyLight: "#FAFAF6",
+  navy: "#0F2E4C",
+  navySoft: "#1C4A73",
+  skyLight: "#F0F3EC",
+  green: "#3F7A2E",
+  greenDark: "#254B1B",
+  greenSoft: "#E7F0E1",
+  line: "#CFD8C6",
+  chrome: "#254B1B",
+  chromeText: "#EAF1E4",
 };
 
 const FONTS_IMPORT =
@@ -183,13 +189,10 @@ function SpecimenCard({ eyebrow, title, value, sub, accent, onClick }) {
       className="rounded-2xl p-5 flex-1 min-w-0 transition-shadow"
       style={{
         background: THEME.paper,
-        border: `1px solid ${THEME.paperDark}`,
-        borderTop: `3px solid ${accent || THEME.moss}`,
-        boxShadow: "0 1px 3px rgba(35,43,33,0.05)",
+        border: `1px solid ${THEME.line}`,
+        borderTop: `3px solid ${accent || THEME.green}`,
         cursor: onClick ? "pointer" : "default",
       }}
-      onMouseEnter={(e) => onClick && (e.currentTarget.style.boxShadow = "0 6px 16px rgba(35,43,33,0.10)")}
-      onMouseLeave={(e) => onClick && (e.currentTarget.style.boxShadow = "0 1px 3px rgba(35,43,33,0.05)")}
     >
       <div
         className="text-xs uppercase font-semibold tracking-widest"
@@ -207,16 +210,71 @@ function SpecimenCard({ eyebrow, title, value, sub, accent, onClick }) {
         {title}
       </div>
       {sub && (
-        <div className="mt-3 text-xs" style={{ color: THEME.moss, fontFamily: "'JetBrains Mono', monospace" }}>
+        <div className="mt-3 text-xs" style={{ color: accent || THEME.green, fontFamily: "'JetBrains Mono', monospace" }}>
           {sub}
         </div>
       )}
       {onClick && (
-        <div className="mt-2 text-xs font-medium" style={{ color: accent || THEME.moss }}>
+        <div className="mt-2 text-xs font-medium" style={{ color: accent || THEME.green }}>
           View →
         </div>
       )}
     </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Sheet — bottom modal (mobile) / centered modal (desktop), dismissable
+// ---------------------------------------------------------------------------
+function Sheet({ title, children, onClose }) {
+  return (
+    <div
+      className="fixed inset-0 z-40 flex items-end sm:items-center sm:justify-center"
+      style={{ background: "rgba(32,40,31,0.5)" }}
+      onClick={onClose}
+    >
+      <div
+        className="bg-white w-full sm:max-w-md sm:rounded-2xl rounded-t-2xl p-5"
+        style={{ maxHeight: "88vh", overflowY: "auto" }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg" style={{ fontFamily: "Fraunces, serif", fontWeight: 600, color: THEME.ink }}>{title}</h3>
+          <button
+            onClick={onClose}
+            className="w-8 h-8 rounded-full flex items-center justify-center"
+            style={{ background: THEME.chalk }}
+            aria-label="Close"
+          >
+            <Icon glyph="x" size={14} style={{ color: THEME.ink }} />
+          </button>
+        </div>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+// Small pill-style quick-action button (icon badge + title + subtitle),
+// echoing the reference plant-store app's tappable info pills.
+function QuickAction({ icon, iconBg, iconColor, title, subtitle, onClick }) {
+  return (
+    <button
+      onClick={onClick}
+      className="rounded-2xl p-4 flex items-center gap-3 text-left transition-shadow"
+      style={{ background: THEME.paper, border: `1px solid ${THEME.line}` }}
+    >
+      <div
+        className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
+        style={{ background: iconBg }}
+      >
+        <Icon glyph={icon} size={18} style={{ color: iconColor }} />
+      </div>
+      <div>
+        <div className="text-sm font-semibold" style={{ color: THEME.ink }}>{title}</div>
+        <div className="text-xs" style={{ color: THEME.inkSoft }}>{subtitle}</div>
+      </div>
+    </button>
   );
 }
 
@@ -239,30 +297,27 @@ function App() {
   return (
     <div
       className="min-h-screen w-full"
-      style={{ background: THEME.skyLight, fontFamily: "Inter, sans-serif", color: THEME.ink }}
+      style={{ background: THEME.chalk, fontFamily: "Inter, sans-serif", color: THEME.ink }}
     >
       <style>{FONTS_IMPORT}</style>
 
-      {/* Header — clean white nav bar, botanical-store styling */}
-      <header
-        style={{ background: THEME.paper, borderBottom: `1px solid ${THEME.paperDark}`, boxShadow: "0 1px 3px rgba(35,43,33,0.04)" }}
-        className="sticky top-0 z-10"
-      >
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 py-3.5 flex items-center gap-2.5">
+      {/* Header — solid brand green for clear contrast against the page */}
+      <header style={{ background: THEME.chrome }} className="sticky top-0 z-10">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 py-4 flex items-center gap-2">
           <div
-            className="flex items-center justify-center rounded-full"
-            style={{ width: 34, height: 34, background: THEME.chalk, border: `1px solid ${THEME.paperDark}` }}
+            className="w-9 h-9 rounded-full flex items-center justify-center shrink-0"
+            style={{ background: "rgba(255,255,255,0.15)" }}
           >
-            <Icon glyph="sprout" size={17} style={{ color: THEME.moss }} />
+            <Icon glyph="sprout" size={18} style={{ color: THEME.marigoldSoft }} />
           </div>
           <div>
             <div
               className="text-lg sm:text-xl leading-tight"
-              style={{ fontFamily: "Fraunces, serif", fontWeight: 600, letterSpacing: "0.01em", color: THEME.ink }}
+              style={{ fontFamily: "Fraunces, serif", fontWeight: 600, letterSpacing: "0.01em", color: "#FFFFFF" }}
             >
               Biology &amp; Botany Desk
             </div>
-            <div className="text-xs" style={{ color: THEME.inkSoft }}>
+            <div className="text-xs" style={{ color: THEME.chromeText, opacity: 0.85 }}>
               XI &amp; XII · Tamil Nadu Govt. Higher Secondary School
             </div>
           </div>
@@ -288,10 +343,10 @@ function App() {
         )}
       </main>
 
-      {/* Bottom nav — fixed, clean white tab bar */}
+      {/* Bottom nav — fixed, solid brand green to match the header */}
       <nav
         className="fixed bottom-0 left-0 right-0 z-10"
-        style={{ background: THEME.paper, borderTop: `1px solid ${THEME.paperDark}`, boxShadow: "0 -2px 8px rgba(35,43,33,0.05)" }}
+        style={{ background: THEME.chrome, boxShadow: "0 -2px 10px rgba(0,0,0,0.15)" }}
       >
         <div className="max-w-5xl mx-auto grid grid-cols-3">
           {NAV_ITEMS.map(({ id, label, icon }) => {
@@ -301,10 +356,10 @@ function App() {
                 key={id}
                 onClick={() => setTab(id)}
                 className="flex flex-col items-center gap-0.5 py-2.5 text-xs"
-                style={{ color: active ? THEME.moss : THEME.inkSoft, opacity: active ? 1 : 0.85 }}
+                style={{ color: active ? THEME.marigoldSoft : THEME.chromeText, opacity: active ? 1 : 0.75 }}
               >
                 <Icon glyph={icon} size={18} />
-                <span style={{ fontWeight: active ? 600 : 500 }}>{label}</span>
+                <span style={{ fontWeight: active ? 700 : 500 }}>{label}</span>
               </button>
             );
           })}
@@ -323,6 +378,8 @@ function DashboardTab({ students, timetable, exams, setExams, ready, setTab }) {
   const [examClass, setExamClass] = useState("11th");
   const [examDate, setExamDate] = useState("");
   const examSectionRef = useRef(null);
+  const [showDictionary, setShowDictionary] = useState(false);
+  const [showTranslator, setShowTranslator] = useState(false);
 
   const totalStudents = students.length;
 
@@ -361,13 +418,33 @@ function DashboardTab({ students, timetable, exams, setExams, ready, setTab }) {
 
   return (
     <div>
+      {/* Quick actions */}
+      <div className="grid grid-cols-2 gap-3 mb-4">
+        <QuickAction
+          icon="book"
+          iconBg={THEME.greenSoft}
+          iconColor={THEME.greenDark}
+          title="Dictionary"
+          subtitle="English & Botany terms"
+          onClick={() => setShowDictionary(true)}
+        />
+        <QuickAction
+          icon="translate"
+          iconBg={THEME.marigoldSoft}
+          iconColor="#8A6300"
+          title="Translator"
+          subtitle="English · Tamil · Hindi"
+          onClick={() => setShowTranslator(true)}
+        />
+      </div>
+
       <div className="flex flex-col sm:flex-row gap-4">
         <SpecimenCard
           eyebrow="Roster"
           title="Students on record"
           value={ready ? totalStudents : "…"}
           sub={totalStudents === 0 ? "Import an Excel sheet to begin" : "across XI & XII"}
-          accent={THEME.moss}
+          accent={THEME.green}
           onClick={() => setTab("students")}
         />
         <SpecimenCard
@@ -390,15 +467,15 @@ function DashboardTab({ students, timetable, exams, setExams, ready, setTab }) {
 
       <LeafDivider />
 
-      <div ref={examSectionRef} className="rounded-2xl p-4 sm:p-5" style={{ background: THEME.paper, border: `1px solid ${THEME.paperDark}`, boxShadow: "0 1px 3px rgba(35,43,33,0.05)" }}>
+      <div ref={examSectionRef} className="rounded-2xl p-4 sm:p-5" style={{ background: THEME.paper, border: `1px solid ${THEME.line}` }}>
         <div className="flex items-center justify-between">
           <h2 className="text-sm font-semibold uppercase tracking-wide" style={{ color: THEME.inkSoft, letterSpacing: "0.1em" }}>
             Exam Register
           </h2>
           <button
             onClick={() => setShowExamForm((s) => !s)}
-            className="flex items-center gap-1 text-sm px-3 py-1.5 rounded-full text-white"
-            style={{ background: THEME.boardGreen }}
+            className="flex items-center gap-1 text-sm px-3 py-1.5 rounded-xl text-white"
+            style={{ background: THEME.green }}
           >
             {showExamForm ? <Icon glyph="x" size={14} /> : <Icon glyph="plus" size={14} />}
             {showExamForm ? "Cancel" : "Add exam"}
@@ -411,14 +488,14 @@ function DashboardTab({ students, timetable, exams, setExams, ready, setTab }) {
               value={examName}
               onChange={(e) => setExamName(e.target.value)}
               placeholder="Exam name (e.g. Botany Unit Test)"
-              className="sm:col-span-2 px-3 py-2 text-sm rounded-lg outline-none"
-              style={{ border: `1px solid ${THEME.paperDark}`, background: THEME.chalk }}
+              className="sm:col-span-2 px-3 py-2 text-sm rounded-xl outline-none"
+              style={{ border: `1px solid ${THEME.line}`, background: THEME.chalk }}
             />
             <select
               value={examClass}
               onChange={(e) => setExamClass(e.target.value)}
-              className="px-3 py-2 text-sm rounded-lg outline-none"
-              style={{ border: `1px solid ${THEME.paperDark}`, background: THEME.chalk }}
+              className="px-3 py-2 text-sm rounded-xl outline-none"
+              style={{ border: `1px solid ${THEME.line}`, background: THEME.chalk }}
             >
               <option>11th</option>
               <option>12th</option>
@@ -427,12 +504,12 @@ function DashboardTab({ students, timetable, exams, setExams, ready, setTab }) {
               type="date"
               value={examDate}
               onChange={(e) => setExamDate(e.target.value)}
-              className="px-3 py-2 text-sm rounded-lg outline-none"
-              style={{ border: `1px solid ${THEME.paperDark}`, background: THEME.chalk }}
+              className="px-3 py-2 text-sm rounded-xl outline-none"
+              style={{ border: `1px solid ${THEME.line}`, background: THEME.chalk }}
             />
             <button
               onClick={addExam}
-              className="sm:col-span-4 mt-1 text-sm px-3 py-2 rounded-full text-white"
+              className="sm:col-span-4 mt-1 text-sm px-3 py-2 rounded-xl text-white"
               style={{ background: THEME.marigold }}
             >
               Save exam
@@ -440,7 +517,7 @@ function DashboardTab({ students, timetable, exams, setExams, ready, setTab }) {
           </div>
         )}
 
-        <div className="mt-4 divide-y" style={{ borderColor: THEME.paperDark }}>
+        <div className="mt-4 divide-y" style={{ borderColor: THEME.line }}>
           {exams.length === 0 && (
             <div className="text-sm py-3" style={{ color: THEME.inkSoft }}>
               No exams added yet.
@@ -449,7 +526,7 @@ function DashboardTab({ students, timetable, exams, setExams, ready, setTab }) {
           {[...exams]
             .sort((a, b) => a.date.localeCompare(b.date))
             .map((e) => (
-              <div key={e.id} className="flex items-center justify-between py-2.5" style={{ borderTopColor: THEME.paperDark, borderTopWidth: 1 }}>
+              <div key={e.id} className="flex items-center justify-between py-2.5" style={{ borderTopColor: THEME.line, borderTopWidth: 1 }}>
                 <div>
                   <div className="text-sm font-medium" style={{ color: THEME.ink }}>{e.name}</div>
                   <div className="text-xs" style={{ color: THEME.inkSoft, fontFamily: "'JetBrains Mono', monospace" }}>
@@ -464,15 +541,14 @@ function DashboardTab({ students, timetable, exams, setExams, ready, setTab }) {
         </div>
       </div>
 
-      <LeafDivider />
-
-      <LanguageTools />
+      {showDictionary && <DictionarySheet onClose={() => setShowDictionary(false)} />}
+      {showTranslator && <TranslatorSheet onClose={() => setShowTranslator(false)} />}
     </div>
   );
 }
 
 // ---------------------------------------------------------------------------
-// Language Tools — translator (English/Tamil/Hindi) + general & botany dictionary
+// Dictionary & Translator — Sheet-based, English/Tamil/Hindi + botany glossary
 // ---------------------------------------------------------------------------
 const LANGUAGES = [
   { code: "en", label: "English" },
@@ -512,230 +588,286 @@ const BOTANY_DICTIONARY = [
   { term: "Nucleus", definition: "The membrane-bound organelle that contains a cell's genetic material.", ta: "உட்கரு", hi: "केंद्रक" },
   { term: "Mitochondria", definition: "The organelle responsible for producing energy (ATP) in a cell.", ta: "மைட்டோகாண்ட்ரியா", hi: "माइटोकॉन्ड्रिया" },
   { term: "Vacuole", definition: "A membrane-bound sac in a cell used for storage, often large in plant cells.", ta: "வெற்றிடம்", hi: "रिक्तिका" },
+  { term: "Cell wall", definition: "The rigid outer layer of plant cells, made mainly of cellulose, that supports and protects the cell.", ta: "செல் சுவர்", hi: "कोशिका भित्ति" },
+  { term: "Cell membrane", definition: "The thin, semi-permeable layer surrounding a cell that controls what enters and leaves.", ta: "செல் சவ்வு", hi: "कोशिका झिल्ली" },
+  { term: "Chloroplast", definition: "The organelle in plant cells where photosynthesis takes place.", ta: "பசுங்கணு", hi: "हरितलवक" },
+  { term: "Ribosome", definition: "The cell organelle where proteins are synthesized.", ta: "ரைபோசோம்", hi: "राइबोसोम" },
+  { term: "Endoplasmic reticulum", definition: "A network of membranes in a cell involved in protein and lipid synthesis and transport.", ta: "எண்டோபிளாஸ்மிக் ரெட்டிகுலம்", hi: "अंतर्द्रव्यी जालिका" },
+  { term: "Golgi apparatus", definition: "The organelle that packages and dispatches proteins produced by the cell.", ta: "கோல்கை உறுப்பு", hi: "गॉल्जी उपकरण" },
+  { term: "Gene", definition: "A unit of heredity made of DNA that carries information for a specific trait.", ta: "மரபணு", hi: "जीन" },
+  { term: "Allele", definition: "One of two or more alternative forms of a gene.", ta: "மாற்று மரபணு", hi: "एलील" },
+  { term: "Dominant", definition: "An allele whose trait is expressed even when only one copy is present.", ta: "மேலாதிக்க", hi: "प्रभावी" },
+  { term: "Recessive", definition: "An allele whose trait is expressed only when two copies are present.", ta: "பின்னடைவு", hi: "अप्रभावी" },
+  { term: "Natural selection", definition: "The process by which organisms better adapted to their environment survive and reproduce more successfully.", ta: "இயற்கைத் தேர்வு", hi: "प्राकृतिक चयन" },
+  { term: "Species", definition: "A group of organisms capable of interbreeding and producing fertile offspring.", ta: "இனம்", hi: "जाति" },
+  { term: "Habitat", definition: "The natural environment in which an organism lives.", ta: "வாழிடம்", hi: "आवास" },
+  { term: "Biodiversity", definition: "The variety of living species found in an ecosystem or on Earth.", ta: "உயிரின பன்முகத்தன்மை", hi: "जैव विविधता" },
+  { term: "Symbiosis", definition: "A close, long-term biological interaction between two different species.", ta: "சகவாழ்வு", hi: "सहजीविता" },
+  { term: "Food chain", definition: "A sequence showing who eats whom in a biological community, transferring energy.", ta: "உணவுச் சங்கிலி", hi: "खाद्य श्रृंखला" },
+  { term: "Meristem", definition: "Plant tissue made of actively dividing cells, found at growing tips of roots and shoots.", ta: "மூலத்திசு", hi: "विभज्योतक" },
+  { term: "Epidermis", definition: "The outermost protective layer of cells covering a plant or leaf.", ta: "மேல்தோல்", hi: "अधिचर्म" },
+  { term: "Guard cell", definition: "A pair of specialized cells that open and close the stomata.", ta: "காவல் செல்", hi: "रक्षक कोशिका" },
+  { term: "Tropism", definition: "The directional growth of a plant in response to an external stimulus.", ta: "திசைவழி வளர்ச்சி", hi: "अनुवर्तन" },
+  { term: "Phototropism", definition: "Growth of a plant toward or away from light.", ta: "ஒளி திசைவழி வளர்ச்சி", hi: "प्रकाशानुवर्तन" },
+  { term: "Endosperm", definition: "The nutritive tissue in a seed that nourishes the developing embryo.", ta: "வித்திறை", hi: "भ्रूणपोष" },
+  { term: "Cotyledon", definition: "The seed leaf within a plant embryo, storing or absorbing food for germination.", ta: "வித்திலை", hi: "बीजपत्र" },
+  { term: "Zygote", definition: "The single cell formed by the fusion of a male and female gamete.", ta: "இணைச்செல்", hi: "युग्मनज" },
+  { term: "Vegetative propagation", definition: "Asexual reproduction of plants from stems, roots, or leaves rather than seeds.", ta: "தாவர இனப்பெருக்கம்", hi: "कायिक प्रवर्धन" },
+  { term: "Parenchyma", definition: "A simple plant tissue made of thin-walled living cells involved in storage and photosynthesis.", ta: "பாரன்கிமா திசு", hi: "मृदूतक" },
+  { term: "Sclerenchyma", definition: "Plant tissue with thick, hardened cell walls that provides mechanical support.", ta: "ஸ்களெரன்கிமா திசு", hi: "दृढ़ोतक" },
+  { term: "Tracheid", definition: "An elongated xylem cell that conducts water and provides support in plants.", ta: "டிரக்கீட் செல்", hi: "वाहिनिका" },
+  { term: "DNA", definition: "Deoxyribonucleic acid — the molecule that carries genetic instructions in living organisms.", ta: "டிஎன்ஏ", hi: "डीएनए" },
+  { term: "RNA", definition: "Ribonucleic acid — a molecule involved in coding, decoding, and expressing genes.", ta: "ஆர்என்ஏ", hi: "आरएनए" },
+  { term: "Enzyme", definition: "A protein that speeds up (catalyzes) chemical reactions in living organisms.", ta: "நொதி", hi: "एंजाइम" },
+  { term: "Hormone", definition: "A chemical messenger produced by an organism that regulates growth or other functions.", ta: "ஹார்மோன்", hi: "हार्मोन" },
+  { term: "Tissue", definition: "A group of similar cells that work together to perform a specific function.", ta: "திசு", hi: "ऊतक" },
+  { term: "Seed dormancy", definition: "A period during which a viable seed does not germinate even under favorable conditions.", ta: "விதை உறக்கநிலை", hi: "बीज सुप्तावस्था" },
+  { term: "Grafting", definition: "A technique of joining tissues of two plants so they grow as one.", ta: "ஒட்டுக்கட்டுதல்", hi: "कलम बांधना" },
 ];
 
-function LanguageTools() {
-  const [srcLang, setSrcLang] = useState("en");
-  const [tgtLang, setTgtLang] = useState("ta");
-  const [sourceText, setSourceText] = useState("");
-  const [translated, setTranslated] = useState("");
-  const [translating, setTranslating] = useState(false);
-  const [translateError, setTranslateError] = useState(null);
+// ---------------------------------------------------------------------------
+// Translator — English / Tamil / Hindi, slide-up sheet
+// ---------------------------------------------------------------------------
+function TranslatorSheet({ onClose }) {
+  const [from, setFrom] = useState("en");
+  const [to, setTo] = useState("ta");
+  const [text, setText] = useState("");
+  const [result, setResult] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
 
-  const [dictMode, setDictMode] = useState("general"); // "general" | "botany"
-  const [word, setWord] = useState("");
-  const [dictResult, setDictResult] = useState(null);
-  const [dictError, setDictError] = useState(null);
-  const [dictLoading, setDictLoading] = useState(false);
-
-  const swapLanguages = () => {
-    setSrcLang(tgtLang);
-    setTgtLang(srcLang);
-    setSourceText(translated);
-    setTranslated(sourceText);
+  const swapLangs = () => {
+    setFrom(to);
+    setTo(from);
+    setText(result);
+    setResult("");
   };
 
-  const runTranslate = async () => {
-    if (!sourceText.trim()) return;
-    setTranslating(true);
-    setTranslateError(null);
-    setTranslated("");
+  const translate = async () => {
+    const q = text.trim();
+    if (!q || from === to) return;
+    setLoading(true);
+    setError("");
+    setResult("");
     try {
-      const url = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(sourceText.trim())}&langpair=${srcLang}|${tgtLang}`;
-      const res = await fetch(url);
+      const res = await fetch(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(q)}&langpair=${from}|${to}`);
+      if (!res.ok) throw new Error(`Request failed (${res.status})`);
       const data = await res.json();
-      const text = data?.responseData?.translatedText;
-      if (!text) throw new Error("No translation returned");
-      setTranslated(text);
+      const translated = data?.responseData?.translatedText;
+      if (!translated) throw new Error("No translation returned");
+      setResult(translated);
     } catch (e) {
-      setTranslateError("Could not translate right now — check your internet connection and try again.");
+      console.error("Translation failed:", e);
+      setError("Couldn't translate that — check your internet connection and try again.");
     } finally {
-      setTranslating(false);
-    }
-  };
-
-  const runDictionary = async () => {
-    const q = word.trim();
-    if (!q) return;
-    setDictError(null);
-    setDictResult(null);
-
-    if (dictMode === "botany") {
-      const ql = q.toLowerCase();
-      const hits = BOTANY_DICTIONARY.filter((d) => d.term.toLowerCase().includes(ql));
-      if (hits.length === 0) setDictError("No matching biology/botany term found.");
-      else setDictResult({ type: "botany", hits });
-      return;
-    }
-
-    setDictLoading(true);
-    try {
-      const res = await fetch(`https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(q)}`);
-      if (!res.ok) throw new Error("not found");
-      const data = await res.json();
-      const entry = data[0];
-      const meanings = (entry?.meanings || []).slice(0, 3).map((m) => ({
-        partOfSpeech: m.partOfSpeech,
-        definition: m.definitions?.[0]?.definition,
-      }));
-      setDictResult({ type: "general", word: entry?.word || q, phonetic: entry?.phonetic, meanings });
-    } catch (e) {
-      setDictError("No definition found — check spelling or your internet connection.");
-    } finally {
-      setDictLoading(false);
+      setLoading(false);
     }
   };
 
   return (
-    <div className="rounded-2xl p-4 sm:p-5" style={{ background: THEME.paper, border: `1px solid ${THEME.paperDark}`, boxShadow: "0 1px 3px rgba(35,43,33,0.05)" }}>
-      <h2 className="text-sm font-semibold uppercase tracking-wide flex items-center gap-1.5" style={{ color: THEME.inkSoft, letterSpacing: "0.1em" }}>
-        <Icon glyph="translate" size={14} /> Language Tools
-      </h2>
-      <p className="text-xs mt-1" style={{ color: THEME.inkSoft }}>
-        Translation and general lookups need an internet connection; the biology/botany glossary works offline.
-      </p>
-
-      {/* Translator */}
-      <div className="mt-4">
-        <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto_1fr] gap-2 items-center">
-          <select
-            value={srcLang}
-            onChange={(e) => setSrcLang(e.target.value)}
-            className="px-3 py-2 text-sm rounded-lg outline-none"
-            style={{ border: `1px solid ${THEME.paperDark}`, background: THEME.chalk }}
-          >
-            {LANGUAGES.map((l) => (
-              <option key={l.code} value={l.code}>{l.label}</option>
-            ))}
-          </select>
-          <button
-            onClick={swapLanguages}
-            aria-label="Swap languages"
-            className="mx-auto sm:mx-2 px-2 py-2 rounded-lg"
-            style={{ border: `1px solid ${THEME.paperDark}`, color: THEME.moss }}
-          >
-            <Icon glyph="swap" size={16} />
-          </button>
-          <select
-            value={tgtLang}
-            onChange={(e) => setTgtLang(e.target.value)}
-            className="px-3 py-2 text-sm rounded-lg outline-none"
-            style={{ border: `1px solid ${THEME.paperDark}`, background: THEME.chalk }}
-          >
-            {LANGUAGES.map((l) => (
-              <option key={l.code} value={l.code}>{l.label}</option>
-            ))}
-          </select>
-        </div>
-
-        <textarea
-          value={sourceText}
-          onChange={(e) => setSourceText(e.target.value)}
-          placeholder="Type text to translate…"
-          rows={2}
-          className="w-full mt-2 px-3 py-2 text-sm rounded-lg outline-none resize-none"
-          style={{ border: `1px solid ${THEME.paperDark}`, background: THEME.chalk }}
-        />
-        <button
-          onClick={runTranslate}
-          disabled={translating}
-          className="mt-2 text-sm px-4 py-2 rounded-full text-white"
-          style={{ background: THEME.boardGreen, opacity: translating ? 0.7 : 1 }}
-        >
-          {translating ? "Translating…" : "Translate"}
-        </button>
-
-        {translateError && (
-          <div className="mt-2 text-xs px-3 py-2 rounded-lg" style={{ background: "#F6E4DD", color: THEME.coral }}>
-            {translateError}
-          </div>
-        )}
-        {translated && (
-          <div className="mt-2 text-sm px-3 py-2 rounded-lg" style={{ background: THEME.chalk, border: `1px solid ${THEME.paperDark}` }}>
-            {translated}
-          </div>
-        )}
-      </div>
-
-      <LeafDivider />
-
-      {/* Dictionary */}
-      <div>
-        <div className="flex gap-1.5">
-          {[
-            { id: "general", label: "English Dictionary" },
-            { id: "botany", label: "Biology/Botany Glossary" },
-          ].map((m) => (
+    <Sheet onClose={onClose} title="Translator">
+      <div className="flex items-center gap-2 mb-4">
+        <div className="flex-1 grid grid-cols-1 gap-1.5">
+          {LANGUAGES.map((l) => (
             <button
-              key={m.id}
-              onClick={() => { setDictMode(m.id); setDictResult(null); setDictError(null); }}
-              className="px-3 py-1.5 text-xs rounded-full"
-              style={{
-                background: dictMode === m.id ? THEME.boardGreen : THEME.chalk,
-                color: dictMode === m.id ? THEME.chalk : THEME.inkSoft,
-                border: `1px solid ${dictMode === m.id ? THEME.boardGreen : THEME.paperDark}`,
-                fontWeight: dictMode === m.id ? 600 : 500,
-              }}
+              key={l.code}
+              onClick={() => setFrom(l.code)}
+              className="text-xs font-bold px-3 py-2 rounded-lg border-2 text-left"
+              style={
+                from === l.code
+                  ? { background: THEME.greenSoft, color: THEME.greenDark, borderColor: THEME.green }
+                  : { background: "#fff", color: THEME.ink, borderColor: THEME.line }
+              }
             >
-              {m.label}
+              {l.label}
             </button>
           ))}
         </div>
-
-        <div className="mt-2 flex gap-2">
-          <input
-            value={word}
-            onChange={(e) => setWord(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && runDictionary()}
-            placeholder={dictMode === "botany" ? "e.g. Photosynthesis" : "e.g. Ecosystem"}
-            className="flex-1 px-3 py-2 text-sm rounded-lg outline-none"
-            style={{ border: `1px solid ${THEME.paperDark}`, background: THEME.chalk }}
-          />
-          <button
-            onClick={runDictionary}
-            disabled={dictLoading}
-            className="text-sm px-4 py-2 rounded-full text-white"
-            style={{ background: THEME.moss, opacity: dictLoading ? 0.7 : 1 }}
-          >
-            <Icon glyph="book" size={14} />
-          </button>
+        <button
+          onClick={swapLangs}
+          className="w-9 h-9 rounded-full flex items-center justify-center shrink-0"
+          style={{ background: THEME.chalk, border: `1px solid ${THEME.line}` }}
+          aria-label="Swap languages"
+        >
+          <Icon glyph="swap" size={16} style={{ color: THEME.greenDark }} />
+        </button>
+        <div className="flex-1 grid grid-cols-1 gap-1.5">
+          {LANGUAGES.map((l) => (
+            <button
+              key={l.code}
+              onClick={() => setTo(l.code)}
+              className="text-xs font-bold px-3 py-2 rounded-lg border-2 text-left"
+              style={
+                to === l.code
+                  ? { background: THEME.marigoldSoft, color: "#8A6300", borderColor: THEME.marigold }
+                  : { background: "#fff", color: THEME.ink, borderColor: THEME.line }
+              }
+            >
+              {l.label}
+            </button>
+          ))}
         </div>
-
-        {dictError && (
-          <div className="mt-2 text-xs px-3 py-2 rounded-lg" style={{ background: "#F6E4DD", color: THEME.coral }}>
-            {dictError}
-          </div>
-        )}
-
-        {dictResult?.type === "general" && (
-          <div className="mt-2 rounded-lg p-3" style={{ background: THEME.chalk, border: `1px solid ${THEME.paperDark}` }}>
-            <div className="text-sm font-semibold" style={{ fontFamily: "Fraunces, serif" }}>
-              {dictResult.word} {dictResult.phonetic && <span className="text-xs font-normal" style={{ color: THEME.inkSoft }}>{dictResult.phonetic}</span>}
-            </div>
-            {dictResult.meanings.map((m, i) => (
-              <div key={i} className="mt-1.5 text-sm" style={{ color: THEME.inkSoft }}>
-                <span className="italic">{m.partOfSpeech}</span> — {m.definition}
-              </div>
-            ))}
-          </div>
-        )}
-
-        {dictResult?.type === "botany" && (
-          <div className="mt-2 space-y-2">
-            {dictResult.hits.map((h) => (
-              <div key={h.term} className="rounded-lg p-3" style={{ background: THEME.chalk, border: `1px solid ${THEME.paperDark}` }}>
-                <div className="text-sm font-semibold" style={{ fontFamily: "Fraunces, serif" }}>{h.term}</div>
-                <div className="mt-1 text-sm" style={{ color: THEME.inkSoft }}>{h.definition}</div>
-                <div className="mt-1.5 text-xs flex gap-3" style={{ color: THEME.moss, fontFamily: "'JetBrains Mono', monospace" }}>
-                  <span>தமிழ்: {h.ta}</span>
-                  <span>हिंदी: {h.hi}</span>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
       </div>
-    </div>
+
+      <textarea
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        rows={3}
+        placeholder="Type text to translate…"
+        className="w-full rounded-xl p-3 text-sm mb-3 outline-none"
+        style={{ border: `2px solid ${THEME.line}` }}
+      />
+
+      <button
+        onClick={translate}
+        disabled={!text.trim() || loading || from === to}
+        className="w-full py-3 rounded-xl text-white font-semibold disabled:opacity-40 mb-2"
+        style={{ background: THEME.green, fontFamily: "Fraunces, serif" }}
+      >
+        {loading ? "Translating…" : "Translate"}
+      </button>
+      {from === to && <p className="text-xs mb-3" style={{ color: THEME.coral }}>Pick two different languages.</p>}
+      {error && <p className="text-sm text-center py-2" style={{ color: THEME.coral }}>{error}</p>}
+      {result && (
+        <div className="rounded-xl p-3" style={{ background: THEME.greenSoft }}>
+          <p className="text-sm" style={{ color: THEME.ink }}>{result}</p>
+        </div>
+      )}
+      <p className="text-xs mt-3" style={{ color: THEME.inkSoft }}>
+        Machine translation can be imperfect, especially for longer sentences.
+      </p>
+    </Sheet>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Dictionary — English word lookups, slide-up sheet
+// Biology/botany terms check the local glossary first (works offline, and
+// includes Tamil/Hindi); anything not found there falls back to the live
+// English dictionary API, so results are never thin.
+// ---------------------------------------------------------------------------
+function DictionarySheet({ onClose }) {
+  const [word, setWord] = useState("");
+  const [result, setResult] = useState(null); // { type: "botany" | "general", ... }
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  const fetchGeneral = async (q) => {
+    const res = await fetch(`https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(q)}`);
+    if (res.status === 404) return null;
+    if (!res.ok) throw new Error(`Request failed (${res.status})`);
+    const data = await res.json();
+    const entry = data[0];
+    const meanings = (entry?.meanings || []).slice(0, 3).map((m) => ({
+      partOfSpeech: m.partOfSpeech,
+      definitions: (m.definitions || []).slice(0, 2).map((d) => d.definition),
+    }));
+    return { type: "general", word: entry?.word || q, phonetic: entry?.phonetic, meanings };
+  };
+
+  const lookup = async () => {
+    const q = word.trim();
+    if (!q) return;
+    setLoading(true);
+    setError("");
+    setResult(null);
+    try {
+      const ql = q.toLowerCase();
+      const botanyHit = BOTANY_DICTIONARY.find((d) => d.term.toLowerCase() === ql);
+      const botanyPartial = !botanyHit ? BOTANY_DICTIONARY.filter((d) => d.term.toLowerCase().includes(ql)) : [];
+
+      if (botanyHit) {
+        setResult({ type: "botany", hits: [botanyHit] });
+      } else if (botanyPartial.length > 0) {
+        setResult({ type: "botany", hits: botanyPartial.slice(0, 6) });
+      } else {
+        const general = await fetchGeneral(q);
+        if (general) setResult(general);
+        else setError(`No definition found for "${q}". Check the spelling and try again.`);
+      }
+    } catch (e) {
+      console.error("Dictionary lookup failed:", e);
+      setError("Couldn't look that up — check your internet connection and try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <Sheet onClose={onClose} title="Dictionary">
+      <p className="text-xs mb-3" style={{ color: THEME.inkSoft }}>
+        Checks the biology/botany glossary first (offline, with Tamil &amp; Hindi), then the general English
+        dictionary if needed.
+      </p>
+      <div className="flex gap-2 mb-4">
+        <input
+          value={word}
+          onChange={(e) => setWord(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && lookup()}
+          placeholder="e.g. photosynthesis"
+          className="flex-1 rounded-xl p-3 text-sm outline-none"
+          style={{ border: `2px solid ${THEME.line}` }}
+        />
+        <button
+          onClick={lookup}
+          disabled={!word.trim() || loading}
+          className="w-12 h-12 rounded-xl text-white flex items-center justify-center shrink-0 disabled:opacity-40"
+          style={{ background: THEME.green }}
+        >
+          <Icon glyph="search" size={18} />
+        </button>
+      </div>
+
+      {loading && <p className="text-sm text-center py-6" style={{ color: THEME.inkSoft }}>Looking it up…</p>}
+      {error && <p className="text-sm text-center py-4" style={{ color: THEME.coral }}>{error}</p>}
+
+      {!loading && !error && !result && (
+        <div className="text-center py-6">
+          <Icon glyph="book" size={26} style={{ color: THEME.greenDark }} />
+          <p className="text-sm mt-2" style={{ color: THEME.inkSoft }}>
+            Search any word — biology/botany terms include Tamil &amp; Hindi translations.
+          </p>
+        </div>
+      )}
+
+      {result?.type === "botany" && (
+        <div className="space-y-3" style={{ maxHeight: "55vh", overflowY: "auto" }}>
+          {result.hits.map((h) => (
+            <div key={h.term} className="rounded-xl p-3" style={{ background: THEME.chalk, border: `1px solid ${THEME.line}` }}>
+              <div className="text-base font-semibold" style={{ fontFamily: "Fraunces, serif", color: THEME.ink }}>{h.term}</div>
+              <div className="mt-1 text-sm" style={{ color: THEME.inkSoft }}>{h.definition}</div>
+              <div className="mt-1.5 text-xs flex gap-3" style={{ color: THEME.greenDark, fontFamily: "'JetBrains Mono', monospace" }}>
+                <span>தமிழ்: {h.ta || "—"}</span>
+                <span>हिंदी: {h.hi || "—"}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {result?.type === "general" && (
+        <div style={{ maxHeight: "55vh", overflowY: "auto" }}>
+          <div className="flex items-baseline gap-2 mb-2">
+            <p className="text-lg font-semibold" style={{ fontFamily: "Fraunces, serif", color: THEME.ink }}>{result.word}</p>
+            {result.phonetic && <p className="text-sm" style={{ color: THEME.inkSoft }}>{result.phonetic}</p>}
+          </div>
+          {result.meanings.map((m, mi) => (
+            <div key={mi} className="mb-3">
+              <span className="text-xs font-bold px-2 py-1 rounded-full" style={{ background: THEME.greenSoft, color: THEME.greenDark }}>
+                {m.partOfSpeech}
+              </span>
+              <ul className="mt-2 space-y-1.5">
+                {m.definitions.map((d, di) => (
+                  <li key={di} className="text-sm" style={{ color: THEME.ink }}>
+                    <span style={{ color: THEME.inkSoft }}>{di + 1}.</span> {d}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
+        </div>
+      )}
+    </Sheet>
   );
 }
 
@@ -924,7 +1056,7 @@ function StudentsTab({ students, setStudents, ready }) {
   return (
     <div>
       {/* Import */}
-      <div className="rounded-2xl p-4 sm:p-5" style={{ background: THEME.paper, border: `1px solid ${THEME.paperDark}`, boxShadow: "0 1px 3px rgba(35,43,33,0.05)" }}>
+      <div className="rounded-sm p-4 sm:p-5" style={{ background: THEME.paper, border: `1px solid ${THEME.paperDark}` }}>
         <h2 className="text-sm font-semibold uppercase tracking-wide" style={{ color: THEME.inkSoft, letterSpacing: "0.1em" }}>
           Import Student List
         </h2>
@@ -935,7 +1067,7 @@ function StudentsTab({ students, setStudents, ready }) {
         <div className="mt-3 flex flex-col sm:flex-row items-start sm:items-center gap-3">
           <button
             onClick={() => fileRef.current?.click()}
-            className="flex items-center gap-2 text-sm px-4 py-2 rounded-full text-white"
+            className="flex items-center gap-2 text-sm px-4 py-2 rounded-sm text-white"
             style={{ background: THEME.boardGreen }}
           >
             <Icon glyph="upload" size={15} />
@@ -959,7 +1091,7 @@ function StudentsTab({ students, setStudents, ready }) {
           )}
         </div>
         {importError && (
-          <div className="mt-3 text-xs px-3 py-2 rounded-lg" style={{ background: "#F6E4DD", color: THEME.coral }}>
+          <div className="mt-3 text-xs px-3 py-2 rounded-sm" style={{ background: "#F6E4DD", color: THEME.coral }}>
             {importError}
           </div>
         )}
@@ -970,7 +1102,7 @@ function StudentsTab({ students, setStudents, ready }) {
           </div>
         )}
         {columns.some((c) => SENSITIVE_HINT_KEYWORDS.some((k) => c.toLowerCase().includes(k))) && (
-          <div className="mt-3 text-xs px-3 py-2 rounded-lg" style={{ background: THEME.marigoldSoft, color: THEME.ink }}>
+          <div className="mt-3 text-xs px-3 py-2 rounded-sm" style={{ background: THEME.marigoldSoft, color: THEME.ink }}>
             This list includes sensitive personal details (Aadhaar, contact, address, family info). Keep this
             device secure and avoid hosting this data publicly.
           </div>
@@ -980,7 +1112,7 @@ function StudentsTab({ students, setStudents, ready }) {
       <LeafDivider />
 
       {/* Filters */}
-      <div className="rounded-2xl p-4 sm:p-5" style={{ background: THEME.paper, border: `1px solid ${THEME.paperDark}`, boxShadow: "0 1px 3px rgba(35,43,33,0.05)" }}>
+      <div className="rounded-sm p-4 sm:p-5" style={{ background: THEME.paper, border: `1px solid ${THEME.paperDark}` }}>
         <h2 className="text-sm font-semibold uppercase tracking-wide" style={{ color: THEME.inkSoft, letterSpacing: "0.1em" }}>
           Find Students
         </h2>
@@ -994,7 +1126,7 @@ function StudentsTab({ students, setStudents, ready }) {
               setSection("");
               setSelected(null);
             }}
-            className="px-3 py-2 text-sm rounded-lg outline-none"
+            className="px-3 py-2 text-sm rounded-sm outline-none"
             style={{ border: `1px solid ${THEME.paperDark}`, background: THEME.chalk }}
           >
             <option value="">Academic year — all</option>
@@ -1010,7 +1142,7 @@ function StudentsTab({ students, setStudents, ready }) {
               setSection("");
               setSelected(null);
             }}
-            className="px-3 py-2 text-sm rounded-lg outline-none"
+            className="px-3 py-2 text-sm rounded-sm outline-none"
             style={{ border: `1px solid ${THEME.paperDark}`, background: THEME.chalk }}
           >
             <option value="">Class — all</option>
@@ -1025,7 +1157,7 @@ function StudentsTab({ students, setStudents, ready }) {
               setSection(e.target.value);
               setSelected(null);
             }}
-            className="px-3 py-2 text-sm rounded-lg outline-none"
+            className="px-3 py-2 text-sm rounded-sm outline-none"
             style={{ border: `1px solid ${THEME.paperDark}`, background: THEME.chalk }}
           >
             <option value="">Section — all</option>
@@ -1043,14 +1175,14 @@ function StudentsTab({ students, setStudents, ready }) {
                 setSelected(null);
               }}
               placeholder="Student name…"
-              className="w-full pl-8 pr-3 py-2 text-sm rounded-lg outline-none"
+              className="w-full pl-8 pr-3 py-2 text-sm rounded-sm outline-none"
               style={{ border: `1px solid ${THEME.paperDark}`, background: THEME.chalk }}
             />
           </div>
         </div>
 
         {nameQuery && !selected && (
-          <div className="mt-2 rounded-lg overflow-hidden" style={{ border: `1px solid ${THEME.paperDark}` }}>
+          <div className="mt-2 rounded-sm overflow-hidden" style={{ border: `1px solid ${THEME.paperDark}` }}>
             {matches.length === 0 ? (
               <div className="text-sm px-3 py-2" style={{ color: THEME.inkSoft, background: THEME.chalk }}>
                 No matching students in this scope.
@@ -1075,7 +1207,7 @@ function StudentsTab({ students, setStudents, ready }) {
 
         {selected ? (
           <div
-            className="mt-4 rounded-lg p-4"
+            className="mt-4 rounded-sm p-4"
             style={{ background: THEME.chalk, borderTop: `3px solid ${THEME.marigold}`, border: `1px solid ${THEME.paperDark}` }}
           >
             <div className="flex items-center justify-between">
@@ -1112,7 +1244,7 @@ function StudentsTab({ students, setStudents, ready }) {
                   <select
                     value={pageSize}
                     onChange={(e) => setPageSize(Number(e.target.value))}
-                    className="px-2 py-1 text-xs rounded-lg outline-none"
+                    className="px-2 py-1 text-xs rounded-sm outline-none"
                     style={{ border: `1px solid ${THEME.paperDark}`, background: THEME.chalk }}
                   >
                     {PAGE_SIZE_OPTIONS.map((n) => (
@@ -1122,7 +1254,7 @@ function StudentsTab({ students, setStudents, ready }) {
                 </div>
               </div>
 
-              <div className="overflow-x-auto rounded-lg" style={{ border: `1px solid ${THEME.paperDark}` }}>
+              <div className="overflow-x-auto rounded-sm" style={{ border: `1px solid ${THEME.paperDark}` }}>
                 <table className="text-xs border-collapse" style={{ minWidth: Math.max(480, columns.length * 130) }}>
                   <thead>
                     <tr>
@@ -1172,7 +1304,7 @@ function StudentsTab({ students, setStudents, ready }) {
                     <button
                       onClick={() => setPage((p) => Math.max(1, p - 1))}
                       disabled={page <= 1}
-                      className="px-3 py-1 rounded-lg"
+                      className="px-3 py-1 rounded-sm"
                       style={{ border: `1px solid ${THEME.paperDark}`, opacity: page <= 1 ? 0.5 : 1 }}
                     >
                       Prev
@@ -1180,7 +1312,7 @@ function StudentsTab({ students, setStudents, ready }) {
                     <button
                       onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
                       disabled={page >= totalPages}
-                      className="px-3 py-1 rounded-lg"
+                      className="px-3 py-1 rounded-sm"
                       style={{ border: `1px solid ${THEME.paperDark}`, opacity: page >= totalPages ? 0.5 : 1 }}
                     >
                       Next
@@ -1222,7 +1354,7 @@ function TimetableTab({ timetable, setTimetable, ready }) {
 
   return (
     <div>
-      <div className="rounded-2xl p-4 sm:p-5" style={{ background: THEME.paper, border: `1px solid ${THEME.paperDark}`, boxShadow: "0 1px 3px rgba(35,43,33,0.05)" }}>
+      <div className="rounded-sm p-4 sm:p-5" style={{ background: THEME.paper, border: `1px solid ${THEME.paperDark}` }}>
         <div className="flex items-center justify-between">
           <h2 className="text-sm font-semibold uppercase tracking-wide" style={{ color: THEME.inkSoft, letterSpacing: "0.1em" }}>
             Weekly Timetable
@@ -1236,7 +1368,7 @@ function TimetableTab({ timetable, setTimetable, ready }) {
         <div className="flex gap-1.5 mt-4 overflow-x-auto pb-1">
           <button
             onClick={() => setSelectedDay(null)}
-            className="px-3 py-1.5 text-xs rounded-full whitespace-nowrap"
+            className="px-3 py-1.5 text-xs rounded-sm whitespace-nowrap"
             style={{
               background: selectedDay === null ? THEME.boardGreen : THEME.chalk,
               color: selectedDay === null ? THEME.chalk : THEME.inkSoft,
@@ -1253,7 +1385,7 @@ function TimetableTab({ timetable, setTimetable, ready }) {
               <button
                 key={d}
                 onClick={() => setSelectedDay(i)}
-                className="px-3 py-1.5 text-xs rounded-full whitespace-nowrap"
+                className="px-3 py-1.5 text-xs rounded-sm whitespace-nowrap"
                 style={{
                   background: active ? THEME.marigold : THEME.chalk,
                   color: active ? THEME.chalk : THEME.inkSoft,
@@ -1321,20 +1453,20 @@ function TimetableTab({ timetable, setTimetable, ready }) {
                                 onChange={(e) => setDraft(e.target.value)}
                                 onKeyDown={(e) => e.key === "Enter" && saveCell()}
                                 placeholder="e.g. 11-A Botany"
-                                className="w-full px-1.5 py-1 text-xs rounded-lg outline-none"
+                                className="w-full px-1.5 py-1 text-xs rounded-sm outline-none"
                                 style={{ border: `1px solid ${THEME.moss}` }}
                               />
                               <div className="flex gap-1">
                                 <button
                                   onClick={saveCell}
-                                  className="flex-1 text-xs py-1 rounded-lg text-white"
+                                  className="flex-1 text-xs py-1 rounded-sm text-white"
                                   style={{ background: THEME.moss }}
                                 >
                                   Save
                                 </button>
                                 <button
                                   onClick={() => setEditingKey(null)}
-                                  className="text-xs px-2 py-1 rounded-lg"
+                                  className="text-xs px-2 py-1 rounded-sm"
                                   style={{ border: `1px solid ${THEME.paperDark}` }}
                                 >
                                   <Icon glyph="x" size={12} />
@@ -1344,7 +1476,7 @@ function TimetableTab({ timetable, setTimetable, ready }) {
                           ) : (
                             <button
                               onClick={() => openCell(dayIdx, p)}
-                              className="w-full text-left text-xs px-1.5 py-2 rounded-lg"
+                              className="w-full text-left text-xs px-1.5 py-2 rounded-sm"
                               style={{ minHeight: "2.25rem", color: value ? THEME.ink : THEME.paperDark, background: "transparent" }}
                             >
                               {value || "+"}
@@ -1363,7 +1495,7 @@ function TimetableTab({ timetable, setTimetable, ready }) {
             <div className="flex items-center justify-between mb-2">
               <button
                 onClick={() => setSelectedDay((d) => (d - 1 + DAYS.length) % DAYS.length)}
-                className="px-3 py-1.5 text-xs rounded-lg"
+                className="px-3 py-1.5 text-xs rounded-sm"
                 style={{ border: `1px solid ${THEME.paperDark}`, color: THEME.inkSoft }}
               >
                 ← {DAYS[(selectedDay - 1 + DAYS.length) % DAYS.length]}
@@ -1373,13 +1505,13 @@ function TimetableTab({ timetable, setTimetable, ready }) {
               </div>
               <button
                 onClick={() => setSelectedDay((d) => (d + 1) % DAYS.length)}
-                className="px-3 py-1.5 text-xs rounded-lg"
+                className="px-3 py-1.5 text-xs rounded-sm"
                 style={{ border: `1px solid ${THEME.paperDark}`, color: THEME.inkSoft }}
               >
                 {DAYS[(selectedDay + 1) % DAYS.length]} →
               </button>
             </div>
-            <div className="rounded-lg overflow-hidden" style={{ border: `1px solid ${THEME.paperDark}` }}>
+            <div className="rounded-sm overflow-hidden" style={{ border: `1px solid ${THEME.paperDark}` }}>
               {PERIODS.map((p, i) => {
                 const key = `${selectedDay}-${p}`;
                 const value = timetable[key];
@@ -1404,15 +1536,15 @@ function TimetableTab({ timetable, setTimetable, ready }) {
                           onChange={(e) => setDraft(e.target.value)}
                           onKeyDown={(e) => e.key === "Enter" && saveCell()}
                           placeholder="e.g. 11-A Botany"
-                          className="flex-1 px-2 py-1.5 text-sm rounded-lg outline-none"
+                          className="flex-1 px-2 py-1.5 text-sm rounded-sm outline-none"
                           style={{ border: `1px solid ${THEME.moss}` }}
                         />
-                        <button onClick={saveCell} className="text-xs px-3 py-1.5 rounded-lg text-white" style={{ background: THEME.moss }}>
+                        <button onClick={saveCell} className="text-xs px-3 py-1.5 rounded-sm text-white" style={{ background: THEME.moss }}>
                           Save
                         </button>
                         <button
                           onClick={() => setEditingKey(null)}
-                          className="text-xs px-2 py-1.5 rounded-lg"
+                          className="text-xs px-2 py-1.5 rounded-sm"
                           style={{ border: `1px solid ${THEME.paperDark}` }}
                         >
                           <Icon glyph="x" size={12} />
@@ -1421,7 +1553,7 @@ function TimetableTab({ timetable, setTimetable, ready }) {
                     ) : (
                       <button
                         onClick={() => openCell(selectedDay, p)}
-                        className="flex-1 text-left text-sm px-2 py-1.5 rounded-lg"
+                        className="flex-1 text-left text-sm px-2 py-1.5 rounded-sm"
                         style={{ color: value ? THEME.ink : THEME.inkSoft }}
                       >
                         {value || "+ Add class"}
