@@ -93,6 +93,7 @@ const ICON_GLYPHS = {
   swap: "\u21C4",
   print: "\uD83D\uDDA8\uFE0F",
   tamilCal: "\uD83E\uDEB7",
+  bus: "\uD83D\uDE8C",
 };
 
 function Icon({ glyph, size = 16, style = {}, className = "" }) {
@@ -511,6 +512,14 @@ function DashboardTab({ students, timetable, exams, setExams, ready, setTab }) {
           subtitle="Today's Tamil date"
           onClick={() => setShowTamilCal(true)}
         />
+        <QuickAction
+          icon="bus"
+          iconBg={THEME.greenSoft}
+          iconColor={THEME.greenDark}
+          title="Bus Tracking"
+          subtitle="MTC live via Chalo ↗"
+          onClick={() => window.open("https://chalo.com/chennai", "_blank", "noopener,noreferrer")}
+        />
       </div>
 
       <div className="flex flex-col sm:flex-row gap-4">
@@ -614,6 +623,35 @@ function DashboardTab({ students, timetable, exams, setExams, ready, setTab }) {
               </div>
             ))}
         </div>
+      </div>
+
+      <LeafDivider />
+
+      <div className="rounded-sm p-4 sm:p-5" style={{ background: THEME.paper, border: `1px solid ${THEME.paperDark}` }}>
+        <div className="text-sm font-semibold" style={{ color: THEME.ink }}>Clear All Data</div>
+        <p className="text-xs mt-1" style={{ color: THEME.inkSoft }}>
+          Removes the imported student list, timetable, and exam entries saved on this device. Use this
+          before handing the device to someone else, since the student data includes sensitive details.
+          This can't be undone.
+        </p>
+        <button
+          onClick={() => {
+            if (window.confirm("Clear all saved data (students, timetable, exams) from this device? This can't be undone.")) {
+              try {
+                window.localStorage.removeItem("students");
+                window.localStorage.removeItem("timetable");
+                window.localStorage.removeItem("exams");
+              } catch (e) {
+                console.error("Clear data failed:", e);
+              }
+              window.location.reload();
+            }
+          }}
+          className="mt-3 text-sm px-4 py-2 rounded-sm text-white"
+          style={{ background: THEME.coral }}
+        >
+          Clear All Data
+        </button>
       </div>
 
       {showDictionary && <DictionarySheet onClose={() => setShowDictionary(false)} />}
@@ -876,10 +914,165 @@ function getTamilDate(d) {
   return { month: current.name, day: dayNum };
 }
 
+// ---------------------------------------------------------------------------
+// Panchangam math — Sun/Moon ecliptic longitude via standard low-precision
+// formulas (Meeus, "Astronomical Algorithms"), Lahiri ayanamsa, and a
+// standard NOAA-style sunrise/sunset calculation. Coordinates default to
+// Chennai / Tamil Nadu. All computed locally, no internet needed.
+// ---------------------------------------------------------------------------
+const DEG = Math.PI / 180;
+const normDeg = (x) => ((x % 360) + 360) % 360;
+
+function toJulianDay(date) {
+  const y = date.getUTCFullYear();
+  let m = date.getUTCMonth() + 1;
+  let yy = y;
+  if (m <= 2) { yy -= 1; m += 12; }
+  const A = Math.floor(yy / 100);
+  const B = 2 - A + Math.floor(A / 4);
+  const dayFrac = date.getUTCDate() + (date.getUTCHours() + date.getUTCMinutes() / 60 + date.getUTCSeconds() / 3600) / 24;
+  return Math.floor(365.25 * (yy + 4716)) + Math.floor(30.6001 * (m + 1)) + dayFrac + B - 1524.5;
+}
+
+function sunLongitudeDeg(jd) {
+  const T = (jd - 2451545.0) / 36525;
+  const L0 = 280.46646 + 36000.76983 * T + 0.0003032 * T * T;
+  const M = 357.52911 + 35999.05029 * T - 0.0001537 * T * T;
+  const Mr = M * DEG;
+  const C = (1.914602 - 0.004817 * T - 0.000014 * T * T) * Math.sin(Mr)
+    + (0.019993 - 0.000101 * T) * Math.sin(2 * Mr)
+    + 0.000289 * Math.sin(3 * Mr);
+  return normDeg(L0 + C);
+}
+
+function moonLongitudeDeg(jd) {
+  const T = (jd - 2451545.0) / 36525;
+  const Lp = 218.3164477 + 481267.88123421 * T - 0.0015786 * T * T;
+  const D = (297.8501921 + 445267.1114034 * T - 0.0018819 * T * T) * DEG;
+  const M = (357.5291092 + 35999.0502909 * T - 0.0001536 * T * T) * DEG;
+  const Mp = (134.9633964 + 477198.8675055 * T + 0.0087414 * T * T) * DEG;
+  const F = (93.2720950 + 483202.0175233 * T - 0.0036539 * T * T) * DEG;
+  const dL =
+    6.288774 * Math.sin(Mp) + 1.274027 * Math.sin(2 * D - Mp) + 0.658314 * Math.sin(2 * D)
+    + 0.213618 * Math.sin(2 * Mp) - 0.185116 * Math.sin(M) - 0.114332 * Math.sin(2 * F)
+    + 0.058793 * Math.sin(2 * D - 2 * Mp) + 0.057066 * Math.sin(2 * D - M - Mp)
+    + 0.053322 * Math.sin(2 * D + Mp) + 0.045758 * Math.sin(2 * D - M)
+    - 0.040923 * Math.sin(M - Mp) - 0.034720 * Math.sin(D) - 0.030383 * Math.sin(M + Mp);
+  return normDeg(Lp + dL);
+}
+
+function lahiriAyanamsaDeg(jd) {
+  const yearsSince2000 = (jd - 2451545.0) / 365.25;
+  return 23.85 + 0.013972 * yearsSince2000;
+}
+
+// Standard sunrise/sunset algorithm (Sun eq. from Almanac, NOAA-equivalent).
+function sunriseSunset(date, lat, lon) {
+  const rad = DEG;
+  const start = Date.UTC(date.getFullYear(), date.getMonth(), date.getDate());
+  const dayOfYear = Math.floor((start - Date.UTC(date.getFullYear(), 0, 0)) / 86400000);
+  const lngHour = lon / 15;
+
+  const calc = (isRise) => {
+    const t = dayOfYear + ((isRise ? 6 : 18) - lngHour) / 24;
+    const M = 0.9856 * t - 3.289;
+    let L = M + 1.916 * Math.sin(M * rad) + 0.020 * Math.sin(2 * M * rad) + 282.634;
+    L = normDeg(L);
+    let RA = Math.atan(0.91764 * Math.tan(L * rad)) / rad;
+    RA = normDeg(RA);
+    RA += Math.floor(L / 90) * 90 - Math.floor(RA / 90) * 90;
+    RA /= 15;
+    const sinDec = 0.39782 * Math.sin(L * rad);
+    const cosDec = Math.cos(Math.asin(sinDec));
+    const cosH = (Math.cos(90.833 * rad) - sinDec * Math.sin(lat * rad)) / (cosDec * Math.cos(lat * rad));
+    if (cosH > 1 || cosH < -1) return null;
+    let H = isRise ? 360 - Math.acos(cosH) / rad : Math.acos(cosH) / rad;
+    H /= 15;
+    const T = H + RA - 0.06571 * t - 6.622;
+    return ((T - lngHour) % 24 + 24) % 24; // UTC decimal hours
+  };
+
+  const riseUT = calc(true);
+  const setUT = calc(false);
+  const toDate = (ut) => (ut == null ? null : new Date(start + ut * 3600000));
+  return { sunrise: toDate(riseUT), sunset: toDate(setUT) };
+}
+
+const fmtTime = (d) => (d ? d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" }) : "—");
+
+const THITHI_NAMES = [
+  "Prathamai", "Dvitiyai", "Tritiyai", "Chaturthi", "Panchami", "Sashti", "Sapthami",
+  "Ashtami", "Navami", "Dashami", "Ekadashi", "Dvadashi", "Trayodashi", "Chaturdashi",
+];
+const NAKSHATRA_NAMES_TA = [
+  "Ashwini", "Bharani", "Krithigai", "Rohini", "Mrigasirisham", "Thiruvathirai", "Punarpoosam",
+  "Poosam", "Ayilyam", "Magam", "Pooram", "Uthiram", "Hastham", "Chithirai", "Swathi",
+  "Visakam", "Anusham", "Kettai", "Moolam", "Pooradam", "Uthiradam", "Thiruvonam",
+  "Avittam", "Sathayam", "Poorattathi", "Uthirattathi", "Revathi",
+];
+const RASI_NAMES_TA = [
+  "Mesham", "Rishabam", "Mithunam", "Kadagam", "Simmam", "Kanni",
+  "Thulam", "Vrichigam", "Dhanusu", "Magaram", "Kumbam", "Meenam",
+];
+
+// Default reference location: Chennai / Tamil Nadu.
+const DEFAULT_LAT = 13.0827;
+const DEFAULT_LON = 80.2707;
+
+function computePanchangam(date) {
+  const jd = toJulianDay(date);
+  const sunLon = sunLongitudeDeg(jd);
+  const moonLon = moonLongitudeDeg(jd);
+  const ayanamsa = lahiriAyanamsaDeg(jd);
+
+  const elongation = normDeg(moonLon - sunLon);
+  const thithiIndex = Math.floor(elongation / 12); // 0-29
+  const paksha = thithiIndex < 15 ? "Shukla Paksham (waxing)" : "Krishna Paksham (waning)";
+  const inPaksha = thithiIndex % 15;
+  const thithi = inPaksha === 14
+    ? (thithiIndex < 15 ? "Pournami (Full Moon)" : "Amavasai (New Moon)")
+    : THITHI_NAMES[inPaksha];
+
+  const siderealMoon = normDeg(moonLon - ayanamsa);
+  const nakshatraIndex = Math.floor(siderealMoon / (360 / 27));
+  const rasiIndex = Math.floor(siderealMoon / 30);
+
+  const { sunrise, sunset } = sunriseSunset(date, DEFAULT_LAT, DEFAULT_LON);
+  let rahuKalam = "—", yamagandam = "—", gulikaKalam = "—";
+  if (sunrise && sunset) {
+    const segment = (sunset - sunrise) / 8;
+    const segTime = (n) => {
+      const s = new Date(sunrise.getTime() + (n - 1) * segment);
+      const e = new Date(sunrise.getTime() + n * segment);
+      return `${fmtTime(s)} – ${fmtTime(e)}`;
+    };
+    const dow = date.getDay(); // 0=Sun..6=Sat
+    const RAHU_OCTANT = [8, 2, 7, 5, 6, 4, 3];
+    const YAMA_OCTANT = [5, 4, 3, 2, 1, 7, 6];
+    const GULIKA_OCTANT = [7, 6, 5, 4, 3, 2, 1];
+    rahuKalam = segTime(RAHU_OCTANT[dow]);
+    yamagandam = segTime(YAMA_OCTANT[dow]);
+    gulikaKalam = segTime(GULIKA_OCTANT[dow]);
+  }
+
+  return {
+    thithi,
+    paksha,
+    nakshatra: NAKSHATRA_NAMES_TA[nakshatraIndex] || "—",
+    rasi: RASI_NAMES_TA[rasiIndex] || "—",
+    sunrise: fmtTime(sunrise),
+    sunset: fmtTime(sunset),
+    rahuKalam,
+    yamagandam,
+    gulikaKalam,
+  };
+}
+
 function TamilCalendarSheet({ onClose }) {
   const today = new Date();
   const tamilDate = getTamilDate(today);
   const weekday = TAMIL_WEEKDAYS[today.getDay()];
+  const panchangam = useMemo(() => computePanchangam(today), []); // eslint-disable-line
 
   return (
     <Sheet onClose={onClose} title="Tamil Calendar">
@@ -895,10 +1088,35 @@ function TamilCalendarSheet({ onClose }) {
         </div>
       </div>
 
-      <p className="text-xs mt-3" style={{ color: THEME.inkSoft }}>
-        Tamil month and day are calculated locally from standard solar-calendar start dates, so this works
-        offline — but it's approximate and can be off by a day in some years. It doesn't include thithi,
-        nakshatram, rahu kalam, or other panchangam details, which need precise astronomical data.
+      <div className="mt-4">
+        <div className="text-xs font-semibold uppercase tracking-wide mb-2" style={{ color: THEME.inkSoft, letterSpacing: "0.1em" }}>
+          Panchangam (computed, approximate)
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          {[
+            ["Thithi", panchangam.thithi],
+            ["Paksham", panchangam.paksha],
+            ["Nakshatram", panchangam.nakshatra],
+            ["Rasi (Moon sign)", panchangam.rasi],
+            ["Sunrise", panchangam.sunrise],
+            ["Sunset", panchangam.sunset],
+            ["Rahu Kalam", panchangam.rahuKalam],
+            ["Yamagandam", panchangam.yamagandam],
+            ["Gulika Kalam", panchangam.gulikaKalam],
+          ].map(([label, value]) => (
+            <div key={label} className="rounded-lg p-2.5" style={{ background: THEME.chalk, border: `1px solid ${THEME.line}` }}>
+              <div className="uppercase" style={{ color: THEME.inkSoft, letterSpacing: "0.06em", fontSize: "10px" }}>{label}</div>
+              <div className="text-sm font-semibold mt-0.5" style={{ color: THEME.ink }}>{value}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <p className="text-xs mt-4" style={{ color: THEME.inkSoft }}>
+        Calculated locally (works offline) using standard solar/lunar position formulas and the Lahiri
+        ayanamsa, for Chennai / Tamil Nadu coordinates. This is a good day-to-day reference, but it's an
+        approximation — timings near a thithi/nakshatram change, or for muhurtham/religious decisions,
+        should be cross-checked against a printed or authoritative panchangam.
       </p>
 
       <a
@@ -908,7 +1126,7 @@ function TamilCalendarSheet({ onClose }) {
         className="mt-4 block text-center py-3 rounded-xl text-white font-semibold"
         style={{ background: THEME.green, fontFamily: "Fraunces, serif" }}
       >
-        Open full Panchangam on Nithra ↗
+        Cross-check on Nithra ↗
       </a>
     </Sheet>
   );
