@@ -11,13 +11,47 @@
   body { margin: 0; }
 </style>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/react@18/umd/react.production.min.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/react-dom@18/umd/react-dom.production.min.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/@babel/standalone@7/babel.min.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js" crossorigin="anonymous"></script>
 </head>
 <body>
-<div id="root"></div>
+<div id="root">
+  <div id="fallback-msg" style="font-family: sans-serif; padding: 24px; color: #444; max-width: 480px; margin: 0 auto;">
+    Loading…
+  </div>
+</div>
+
+<script>
+  // Safety net: if the app hasn't rendered into #root within a few seconds
+  // (e.g. a CDN script failed to load, likely due to no internet connection),
+  // show a clear message instead of leaving the page blank. Capture phase
+  // (the `true` below) is required to catch script/resource load failures,
+  // not just runtime errors inside scripts that already ran.
+  window.__appErrors = [];
+  window.addEventListener('error', function (e) {
+    var detail = e.message;
+    if (!detail && e.target && e.target.src) detail = 'Failed to load: ' + e.target.src;
+    if (!detail && e.target && e.target.tagName) detail = 'Failed to load a ' + e.target.tagName + ' resource';
+    window.__appErrors.push(detail || 'Unknown error');
+  }, true);
+  window.addEventListener('unhandledrejection', function (e) {
+    window.__appErrors.push('Unhandled promise rejection: ' + (e.reason && e.reason.message ? e.reason.message : e.reason));
+  });
+  setTimeout(function () {
+    var root = document.getElementById('root');
+    var stillPlaceholder = root && root.querySelector('#fallback-msg');
+    if (stillPlaceholder) {
+      var errs = window.__appErrors.length
+        ? '<br><br>Details:<br>' + window.__appErrors.join('<br>')
+        : '<br><br>No specific error was captured — this usually means a script is still loading slowly, or the network blocked it silently.';
+      stillPlaceholder.innerHTML =
+        'Could not load the app. This usually means one of the required scripts failed to load — ' +
+        'please check your internet connection and refresh the page.' + errs;
+    }
+  }, 8000);
+</script>
 
 <script type="text/babel" data-presets="react">
 const { useState, useEffect, useMemo, useRef } = React;
@@ -58,6 +92,7 @@ const ICON_GLYPHS = {
   book: "\uD83D\uDCD6",
   swap: "\u21C4",
   print: "\uD83D\uDDA8\uFE0F",
+  tamilCal: "\uD83E\uDEB7",
 };
 
 function Icon({ glyph, size = 16, style = {}, className = "" }) {
@@ -113,20 +148,22 @@ const PRINT_STYLES = `
     top: 0;
     left: 0;
     width: 100%;
-    padding: 0;
-    margin: 0;
   }
-  @page { size: A4; margin: 12mm; }
-  .print-area table { width: 100%; border-collapse: collapse; font-size: 9.5pt; }
+  @page { size: A4 landscape; margin: 10mm; }
+  .print-area, .print-area * {
+    font-family: Arial, Helvetica, sans-serif !important;
+    color: #000 !important;
+    background: #fff !important;
+  }
+  .print-area table { width: 100%; border-collapse: collapse; font-size: 11pt; }
   .print-area th, .print-area td {
-    border: 1px solid #999;
+    border: 1px solid #000;
     padding: 4px 6px;
     text-align: left;
-    word-break: break-word;
   }
   .print-area thead { display: table-header-group; }
   .print-area tr { page-break-inside: avoid; }
-  .print-header { margin-bottom: 10px; }
+  .print-header { margin-bottom: 8px; font-size: 12pt; }
 }
 `;
 
@@ -293,7 +330,7 @@ function QuickAction({ icon, iconBg, iconColor, title, subtitle, onClick }) {
       style={{ background: THEME.paper, border: `1px solid ${THEME.line}` }}
     >
       <div
-        className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
+        className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
         style={{ background: iconBg }}
       >
         <Icon glyph={icon} size={18} style={{ color: iconColor }} />
@@ -334,7 +371,7 @@ function App() {
       <header style={{ background: THEME.chrome }} className="sticky top-0 z-10">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 py-4 flex items-center gap-2">
           <div
-            className="w-9 h-9 rounded-full flex items-center justify-center shrink-0"
+            className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0"
             style={{ background: "rgba(255,255,255,0.15)" }}
           >
             <Icon glyph="sprout" size={18} style={{ color: THEME.marigoldSoft }} />
@@ -409,6 +446,7 @@ function DashboardTab({ students, timetable, exams, setExams, ready, setTab }) {
   const examSectionRef = useRef(null);
   const [showDictionary, setShowDictionary] = useState(false);
   const [showTranslator, setShowTranslator] = useState(false);
+  const [showTamilCal, setShowTamilCal] = useState(false);
 
   const totalStudents = students.length;
 
@@ -464,6 +502,14 @@ function DashboardTab({ students, timetable, exams, setExams, ready, setTab }) {
           title="Translator"
           subtitle="English · Tamil · Hindi"
           onClick={() => setShowTranslator(true)}
+        />
+        <QuickAction
+          icon="tamilCal"
+          iconBg={THEME.marigoldSoft}
+          iconColor="#8A6300"
+          title="Tamil Calendar"
+          subtitle="Today's Tamil date"
+          onClick={() => setShowTamilCal(true)}
         />
       </div>
 
@@ -572,6 +618,7 @@ function DashboardTab({ students, timetable, exams, setExams, ready, setTab }) {
 
       {showDictionary && <DictionarySheet onClose={() => setShowDictionary(false)} />}
       {showTranslator && <TranslatorSheet onClose={() => setShowTranslator(false)} />}
+      {showTamilCal && <TamilCalendarSheet onClose={() => setShowTamilCal(false)} />}
     </div>
   );
 }
@@ -714,7 +761,7 @@ function TranslatorSheet({ onClose }) {
         </div>
         <button
           onClick={swapLangs}
-          className="w-9 h-9 rounded-full flex items-center justify-center shrink-0"
+          className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0"
           style={{ background: THEME.chalk, border: `1px solid ${THEME.line}` }}
           aria-label="Swap languages"
         >
@@ -765,6 +812,104 @@ function TranslatorSheet({ onClose }) {
       <p className="text-xs mt-3" style={{ color: THEME.inkSoft }}>
         Machine translation can be imperfect, especially for longer sentences.
       </p>
+    </Sheet>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Tamil Calendar — today's Tamil solar month/day + weekday, computed locally
+// (no internet needed). The Tamil calendar is solar, so month-start dates are
+// stable year to year (±1 day). Thithi/nakshatram require lunar ephemeris
+// data we don't have, so we link out to Nithra's Tamil Calendar for the full
+// panchangam instead of guessing at astrological details.
+// ---------------------------------------------------------------------------
+const TAMIL_MONTHS = [
+  { name: "Chithirai", startMonth: 4, startDay: 14 },
+  { name: "Vaikasi", startMonth: 5, startDay: 15 },
+  { name: "Aani", startMonth: 6, startDay: 15 },
+  { name: "Aadi", startMonth: 7, startDay: 17 },
+  { name: "Aavani", startMonth: 8, startDay: 17 },
+  { name: "Purattasi", startMonth: 9, startDay: 17 },
+  { name: "Aippasi", startMonth: 10, startDay: 18 },
+  { name: "Karthigai", startMonth: 11, startDay: 17 },
+  { name: "Margazhi", startMonth: 12, startDay: 16 },
+  { name: "Thai", startMonth: 1, startDay: 14 },
+  { name: "Maasi", startMonth: 2, startDay: 13 },
+  { name: "Panguni", startMonth: 3, startDay: 14 },
+];
+
+const TAMIL_WEEKDAYS = [
+  "Gnayiru (Sunday)",
+  "Thingal (Monday)",
+  "Sevvai (Tuesday)",
+  "Budhan (Wednesday)",
+  "Viyazhan (Thursday)",
+  "Velli (Friday)",
+  "Sani (Saturday)",
+];
+
+function getTamilDate(d) {
+  const y = d.getFullYear();
+  const starts = TAMIL_MONTHS.map((m) => {
+    // Thai..Panguni (indexes 9-11) start in the following calendar year
+    // relative to Chithirai..Margazhi (indexes 0-8) of the same y.
+    const year = m.startMonth <= 3 ? y : y;
+    return { ...m, date: new Date(year, m.startMonth - 1, m.startDay) };
+  });
+  // Build a full ordered list spanning from last Chithirai to next Chithirai
+  // so we can find which window today falls into, regardless of where in
+  // the Gregorian year we are.
+  const candidates = [];
+  for (const offsetYear of [-1, 0, 1]) {
+    for (const m of TAMIL_MONTHS) {
+      const yr = m.startMonth <= 3 ? y + offsetYear + 1 : y + offsetYear;
+      candidates.push({ name: m.name, date: new Date(yr, m.startMonth - 1, m.startDay) });
+    }
+  }
+  candidates.sort((a, b) => a.date - b.date);
+  let current = candidates[0];
+  for (const c of candidates) {
+    if (c.date <= d) current = c;
+    else break;
+  }
+  const dayNum = Math.floor((d - current.date) / (1000 * 60 * 60 * 24)) + 1;
+  return { month: current.name, day: dayNum };
+}
+
+function TamilCalendarSheet({ onClose }) {
+  const today = new Date();
+  const tamilDate = getTamilDate(today);
+  const weekday = TAMIL_WEEKDAYS[today.getDay()];
+
+  return (
+    <Sheet onClose={onClose} title="Tamil Calendar">
+      <div className="rounded-xl p-4 text-center" style={{ background: THEME.greenSoft }}>
+        <div className="text-xs uppercase tracking-widest" style={{ color: THEME.greenDark, letterSpacing: "0.1em" }}>
+          {weekday}
+        </div>
+        <div className="mt-1 text-3xl font-bold" style={{ fontFamily: "Fraunces, serif", color: THEME.ink }}>
+          {tamilDate.day} {tamilDate.month}
+        </div>
+        <div className="mt-1 text-sm" style={{ color: THEME.inkSoft }}>
+          {today.toLocaleDateString(undefined, { weekday: "long", year: "numeric", month: "long", day: "numeric" })}
+        </div>
+      </div>
+
+      <p className="text-xs mt-3" style={{ color: THEME.inkSoft }}>
+        Tamil month and day are calculated locally from standard solar-calendar start dates, so this works
+        offline — but it's approximate and can be off by a day in some years. It doesn't include thithi,
+        nakshatram, rahu kalam, or other panchangam details, which need precise astronomical data.
+      </p>
+
+      <a
+        href="https://www.nithra.com/tamil-calendar"
+        target="_blank"
+        rel="noopener noreferrer"
+        className="mt-4 block text-center py-3 rounded-xl text-white font-semibold"
+        style={{ background: THEME.green, fontFamily: "Fraunces, serif" }}
+      >
+        Open full Panchangam on Nithra ↗
+      </a>
     </Sheet>
   );
 }
@@ -840,7 +985,7 @@ function DictionarySheet({ onClose }) {
         <button
           onClick={lookup}
           disabled={!word.trim() || loading}
-          className="w-12 h-12 rounded-xl text-white flex items-center justify-center shrink-0 disabled:opacity-40"
+          className="w-12 h-12 rounded-xl text-white flex items-center justify-center flex-shrink-0 disabled:opacity-40"
           style={{ background: THEME.green }}
         >
           <Icon glyph="search" size={18} />
@@ -1365,18 +1510,18 @@ function StudentsTab({ students, setStudents, ready }) {
             {/* Print-only: full (unpaginated) table for the current filter scope */}
             <div className="print-area" style={{ display: "none" }}>
               <div className="print-header">
-                <div style={{ fontFamily: "Fraunces, serif", fontWeight: 700, fontSize: "14pt" }}>
+                <div style={{ fontWeight: "bold" }}>
                   Biology &amp; Botany Desk — Student List
                 </div>
-                <div style={{ fontSize: "9pt", color: "#444" }}>
+                <div>
                   {[
                     year && `Academic Year: ${year}`,
                     className && `Class: ${className}`,
                     section && `Section: ${section}`,
-                  ].filter(Boolean).join("  ·  ") || "All students"}
-                  {"  ·  "}
+                  ].filter(Boolean).join("  |  ") || "All students"}
+                  {"  |  "}
                   {scoped.length} student{scoped.length === 1 ? "" : "s"}
-                  {"  ·  "}
+                  {"  |  "}
                   Printed {new Date().toLocaleDateString()}
                 </div>
               </div>
@@ -1602,7 +1747,7 @@ function TimetableTab({ timetable, setTimetable, ready }) {
                     style={{ background: i % 2 ? THEME.paper : THEME.chalk, borderTop: i ? `1px solid ${THEME.paperDark}` : "none" }}
                   >
                     <div
-                      className="text-xs font-medium w-10 shrink-0"
+                      className="text-xs font-medium w-10 flex-shrink-0"
                       style={{ color: THEME.inkSoft, fontFamily: "'JetBrains Mono', monospace" }}
                     >
                       P{p}
@@ -1649,8 +1794,17 @@ function TimetableTab({ timetable, setTimetable, ready }) {
   );
 }
 
-const root = ReactDOM.createRoot(document.getElementById("root"));
-root.render(<App />);
+try {
+  const root = ReactDOM.createRoot(document.getElementById("root"));
+  root.render(<App />);
+} catch (e) {
+  console.error("App render failed:", e);
+  document.getElementById("root").innerHTML =
+    '<div style="font-family: sans-serif; padding: 24px; color: #444; max-width: 480px; margin: 0 auto;">' +
+    'Could not load the app — it hit an error while starting up.<br><br>Details:<br>' +
+    (e && e.message ? e.message : String(e)) +
+    '</div>';
+}
 </script>
 </body>
 </html>
