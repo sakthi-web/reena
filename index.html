@@ -3,11 +3,11 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Biology &amp; Botany Desk</title>
+<title>Reena's Student's Tracking</title>
 
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/tailwindcss/2.2.19/tailwind.min.css" />
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=Baloo+2:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
   body { margin: 0; }
 </style>
 
@@ -94,6 +94,7 @@ const ICON_GLYPHS = {
   print: "\uD83D\uDDA8\uFE0F",
   tamilCal: "\uD83E\uDEB7",
   bus: "\uD83D\uDE8C",
+  clipboard: "\uD83D\uDCCB",
 };
 
 function Icon({ glyph, size = 16, style = {}, className = "" }) {
@@ -109,35 +110,72 @@ function Icon({ glyph, size = 16, style = {}, className = "" }) {
 }
 
 // ---------------------------------------------------------------------------
+// App logo — two higher-secondary students in Tamil Nadu govt. school
+// uniform (white shirt + navy bottoms for the boy, white shirt + check
+// pavadai for the girl), drawn as a flat original vector so it matches the
+// theme colors exactly and needs no external image.
+// ---------------------------------------------------------------------------
+function SchoolLogo({ size = 40 }) {
+  return (
+    <div
+      className="rounded-full flex items-center justify-center flex-shrink-0"
+      style={{ width: size, height: size, background: "#FFFFFF", boxShadow: "0 1px 3px rgba(0,0,0,0.15)" }}
+    >
+      <svg width={size * 0.72} height={size * 0.72} viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+        {/* Girl — left */}
+        <circle cx="17" cy="14" r="6" fill="#3A2E26" />
+        <path d="M11 13c0-3.3 2.7-6 6-6s6 2.7 6 6" fill="#3A2E26" />
+        <path d="M9.5 30c0-5.2 3.4-9.5 7.5-9.5s7.5 4.3 7.5 9.5" fill="#FFC93C" />
+        <path d="M9.5 30c0-5.2 3.4-9.5 7.5-9.5s7.5 4.3 7.5 9.5H9.5z" fill={THEME.marigold} opacity="0.9" />
+        <path d="M11.5 22c1.6-1 3.6-1.5 5.5-1.5s3.9.5 5.5 1.5l-1 8h-9l-1-8z" fill="#FFFFFF" />
+        <rect x="16" y="21" width="2" height="9" fill={THEME.coral} opacity="0.5" />
+        {/* Boy — right */}
+        <circle cx="32" cy="14" r="6" fill="#2A2018" />
+        <path d="M26 12.5c0-3.3 2.7-6 6-6s6 2.7 6 6c0 .5-1 .5-1.5.2-1.7-1-3-1.7-4.5-1.7s-2.8.7-4.5 1.7C27 13 26 13 26 12.5z" fill="#2A2018" />
+        <path d="M24.5 30c0-5.2 3.4-9.5 7.5-9.5s7.5 4.3 7.5 9.5h-15z" fill={THEME.boardGreen} />
+        <path d="M26.5 22c1.6-1 3.6-1.5 5.5-1.5s3.9.5 5.5 1.5l-1 8h-9l-1-8z" fill="#FFFFFF" />
+        <path d="M31 20.8 L32 23 L33 20.8" stroke={THEME.boardGreen} strokeWidth="1.2" fill="none" />
+        {/* Shared open book */}
+        <path d="M15 34c3-1.4 6.3-1.4 9 0v6c-2.7-1.4-6-1.4-9 0v-6z" fill={THEME.green} />
+        <path d="M33 34c-3-1.4-6.3-1.4-9 0v6c2.7-1.4 6-1.4 9 0v-6z" fill={THEME.coral} />
+        <path d="M24 34v6" stroke="#FFFFFF" strokeWidth="0.8" />
+      </svg>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Theme — herbarium specimen sheet meets a Tamil Nadu classroom chalkboard.
 // Core Tailwind utilities only allowed, so custom hexes live here.
 // ---------------------------------------------------------------------------
+// Rainbow / kindergarten-inspired palette — bright primary accents on a warm
+// cream base, with generous rounding applied throughout the UI.
 const THEME = {
-  boardGreen: "#16281C",
-  boardGreenSoft: "#1F3626",
-  moss: "#5C7A52",
-  mossLight: "#8CA478",
+  boardGreen: "#7C6FF0",
+  boardGreenSoft: "#EEEAFF",
+  moss: "#4CC38A",
+  mossLight: "#A7E8C6",
   paper: "#FFFFFF",
-  paperDark: "#D9DED2",
-  ink: "#20281F",
-  inkSoft: "#5C6B57",
-  chalk: "#E7EDE1",
-  marigold: "#D4941C",
-  marigoldSoft: "#F1D9A6",
-  coral: "#C1502E",
-  navy: "#0F2E4C",
-  navySoft: "#1C4A73",
-  skyLight: "#F0F3EC",
-  green: "#3F7A2E",
-  greenDark: "#254B1B",
-  greenSoft: "#E7F0E1",
-  line: "#CFD8C6",
-  chrome: "#254B1B",
-  chromeText: "#EAF1E4",
+  paperDark: "#F0E6CE",
+  ink: "#332E4D",
+  inkSoft: "#7A7396",
+  chalk: "#FFF8EA",
+  marigold: "#FFB020",
+  marigoldSoft: "#FFEDC2",
+  coral: "#FF6B5E",
+  navy: "#2F2B55",
+  navySoft: "#4B4478",
+  skyLight: "#E4F5FF",
+  green: "#2FBE7A",
+  greenDark: "#1C8F5A",
+  greenSoft: "#DFF7EA",
+  line: "#F0E1BE",
+  chrome: "#29B6D8",
+  chromeText: "#FFFFFF",
 };
 
 const FONTS_IMPORT =
-  "@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');";
+  "@import url('https://fonts.googleapis.com/css2?family=Baloo+2:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');";
 
 const PRINT_STYLES = `
 @media print {
@@ -252,7 +290,7 @@ function SpecimenCard({ eyebrow, title, value, sub, accent, onClick }) {
           onClick();
         }
       }}
-      className="rounded-2xl p-5 flex-1 min-w-0 transition-shadow"
+      className="rounded-3xl p-5 flex-1 min-w-0 transition-shadow"
       style={{
         background: THEME.paper,
         border: `1px solid ${THEME.line}`,
@@ -268,7 +306,7 @@ function SpecimenCard({ eyebrow, title, value, sub, accent, onClick }) {
       </div>
       <div
         className="mt-2 text-4xl"
-        style={{ fontFamily: "Fraunces, serif", color: THEME.ink, fontWeight: 600 }}
+        style={{ fontFamily: "'Baloo 2', sans-serif", color: THEME.ink, fontWeight: 600 }}
       >
         {value}
       </div>
@@ -300,12 +338,12 @@ function Sheet({ title, children, onClose }) {
       onClick={onClose}
     >
       <div
-        className="bg-white w-full sm:max-w-md sm:rounded-2xl rounded-t-2xl p-5"
+        className="bg-white w-full sm:max-w-md sm:rounded-3xl rounded-t-3xl p-5"
         style={{ maxHeight: "88vh", overflowY: "auto" }}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg" style={{ fontFamily: "Fraunces, serif", fontWeight: 600, color: THEME.ink }}>{title}</h3>
+          <h3 className="text-lg" style={{ fontFamily: "'Baloo 2', sans-serif", fontWeight: 600, color: THEME.ink }}>{title}</h3>
           <button
             onClick={onClose}
             className="w-8 h-8 rounded-full flex items-center justify-center"
@@ -327,7 +365,7 @@ function QuickAction({ icon, iconBg, iconColor, title, subtitle, onClick }) {
   return (
     <button
       onClick={onClick}
-      className="rounded-2xl p-4 flex items-center gap-3 text-left transition-shadow"
+      className="rounded-3xl p-4 flex items-center gap-3 text-left transition-shadow"
       style={{ background: THEME.paper, border: `1px solid ${THEME.line}` }}
     >
       <div
@@ -353,36 +391,33 @@ function App() {
   const [students, setStudents, studentsReady] = usePersistentState("students", []);
   const [timetable, setTimetable, timetableReady] = usePersistentState("timetable", DEFAULT_TIMETABLE);
   const [exams, setExams, examsReady] = usePersistentState("exams", []);
+  const [attendance, setAttendance, attendanceReady] = usePersistentState("attendance", {});
 
   const NAV_ITEMS = [
     { id: "dashboard", label: "Home", icon: "dashboard" },
     { id: "students", label: "Students", icon: "users" },
+    { id: "attendance", label: "Attendance", icon: "clipboard" },
     { id: "timetable", label: "Timetable", icon: "calendar" },
   ];
 
   return (
     <div
       className="min-h-screen w-full"
-      style={{ background: THEME.chalk, fontFamily: "Inter, sans-serif", color: THEME.ink }}
+      style={{ background: "#FFFFFF", fontFamily: "Inter, sans-serif", color: THEME.ink }}
     >
       <style>{FONTS_IMPORT}</style>
       <style>{PRINT_STYLES}</style>
 
-      {/* Header — solid brand green for clear contrast against the page */}
+      {/* Header — solid brand blue for clear contrast against the page */}
       <header style={{ background: THEME.chrome }} className="sticky top-0 z-10">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 py-4 flex items-center gap-2">
-          <div
-            className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0"
-            style={{ background: "rgba(255,255,255,0.15)" }}
-          >
-            <Icon glyph="sprout" size={18} style={{ color: THEME.marigoldSoft }} />
-          </div>
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 py-4 flex items-center gap-2.5">
+          <SchoolLogo size={40} />
           <div>
             <div
               className="text-lg sm:text-xl leading-tight"
-              style={{ fontFamily: "Fraunces, serif", fontWeight: 600, letterSpacing: "0.01em", color: "#FFFFFF" }}
+              style={{ fontFamily: "'Baloo 2', sans-serif", fontWeight: 600, letterSpacing: "0.01em", color: "#FFFFFF" }}
             >
-              Biology &amp; Botany Desk
+              Reena's Student's Tracking
             </div>
             <div className="text-xs" style={{ color: THEME.chromeText, opacity: 0.85 }}>
               XI &amp; XII · Tamil Nadu Govt. Higher Secondary School
@@ -398,12 +433,21 @@ function App() {
             timetable={timetable}
             exams={exams}
             setExams={setExams}
-            ready={studentsReady && timetableReady && examsReady}
+            attendance={attendance}
+            ready={studentsReady && timetableReady && examsReady && attendanceReady}
             setTab={setTab}
           />
         )}
         {tab === "students" && (
           <StudentsTab students={students} setStudents={setStudents} ready={studentsReady} />
+        )}
+        {tab === "attendance" && (
+          <AttendanceTab
+            students={students}
+            attendance={attendance}
+            setAttendance={setAttendance}
+            ready={studentsReady && attendanceReady}
+          />
         )}
         {tab === "timetable" && (
           <TimetableTab timetable={timetable} setTimetable={setTimetable} ready={timetableReady} />
@@ -415,7 +459,7 @@ function App() {
         className="fixed bottom-0 left-0 right-0 z-10"
         style={{ background: THEME.chrome, boxShadow: "0 -2px 10px rgba(0,0,0,0.15)" }}
       >
-        <div className="max-w-5xl mx-auto grid grid-cols-3">
+        <div className="max-w-5xl mx-auto grid grid-cols-4">
           {NAV_ITEMS.map(({ id, label, icon }) => {
             const active = tab === id;
             return (
@@ -439,7 +483,7 @@ function App() {
 // ---------------------------------------------------------------------------
 // Dashboard
 // ---------------------------------------------------------------------------
-function DashboardTab({ students, timetable, exams, setExams, ready, setTab }) {
+function DashboardTab({ students, timetable, exams, setExams, attendance, ready, setTab }) {
   const [showExamForm, setShowExamForm] = useState(false);
   const [examName, setExamName] = useState("");
   const [examClass, setExamClass] = useState("11th");
@@ -498,27 +542,19 @@ function DashboardTab({ students, timetable, exams, setExams, ready, setTab }) {
         />
         <QuickAction
           icon="translate"
-          iconBg={THEME.marigoldSoft}
-          iconColor="#8A6300"
+          iconBg={"#FFE1DD"}
+          iconColor={THEME.coral}
           title="Translator"
           subtitle="English · Tamil · Hindi"
           onClick={() => setShowTranslator(true)}
         />
         <QuickAction
           icon="tamilCal"
-          iconBg={THEME.marigoldSoft}
-          iconColor="#8A6300"
+          iconBg={THEME.boardGreenSoft}
+          iconColor={THEME.boardGreen}
           title="Tamil Calendar"
           subtitle="Today's Tamil date"
           onClick={() => setShowTamilCal(true)}
-        />
-        <QuickAction
-          icon="bus"
-          iconBg={THEME.greenSoft}
-          iconColor={THEME.greenDark}
-          title="Bus Tracking"
-          subtitle="MTC live via Chalo ↗"
-          onClick={() => window.open("https://chalo.com/chennai", "_blank", "noopener,noreferrer")}
         />
       </div>
 
@@ -551,7 +587,11 @@ function DashboardTab({ students, timetable, exams, setExams, ready, setTab }) {
 
       <LeafDivider />
 
-      <div ref={examSectionRef} className="rounded-2xl p-4 sm:p-5" style={{ background: THEME.paper, border: `1px solid ${THEME.line}` }}>
+      <AttendanceSummaryCard students={students} attendance={attendance} ready={ready} setTab={setTab} />
+
+      <LeafDivider />
+
+      <div ref={examSectionRef} className="rounded-3xl p-4 sm:p-5" style={{ background: THEME.paper, border: `1px solid ${THEME.line}` }}>
         <div className="flex items-center justify-between">
           <h2 className="text-sm font-semibold uppercase tracking-wide" style={{ color: THEME.inkSoft, letterSpacing: "0.1em" }}>
             Exam Register
@@ -627,7 +667,7 @@ function DashboardTab({ students, timetable, exams, setExams, ready, setTab }) {
 
       <LeafDivider />
 
-      <div className="rounded-sm p-4 sm:p-5" style={{ background: THEME.paper, border: `1px solid ${THEME.paperDark}` }}>
+      <div className="rounded-xl p-4 sm:p-5" style={{ background: THEME.paper, border: `1px solid ${THEME.paperDark}` }}>
         <div className="text-sm font-semibold" style={{ color: THEME.ink }}>Clear All Data</div>
         <p className="text-xs mt-1" style={{ color: THEME.inkSoft }}>
           Removes the imported student list, timetable, and exam entries saved on this device. Use this
@@ -647,7 +687,7 @@ function DashboardTab({ students, timetable, exams, setExams, ready, setTab }) {
               window.location.reload();
             }
           }}
-          className="mt-3 text-sm px-4 py-2 rounded-sm text-white"
+          className="mt-3 text-sm px-4 py-2 rounded-xl text-white"
           style={{ background: THEME.coral }}
         >
           Clear All Data
@@ -657,6 +697,240 @@ function DashboardTab({ students, timetable, exams, setExams, ready, setTab }) {
       {showDictionary && <DictionarySheet onClose={() => setShowDictionary(false)} />}
       {showTranslator && <TranslatorSheet onClose={() => setShowTranslator(false)} />}
       {showTamilCal && <TamilCalendarSheet onClose={() => setShowTamilCal(false)} />}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Today's Attendance card — pick a class + section, see present/absent counts
+// and the absentee list for today, with a one-tap "copy for WhatsApp" summary.
+// ---------------------------------------------------------------------------
+function AttendanceSummaryCard({ students, attendance, ready, setTab }) {
+  const [className, setClassName] = useState("");
+  const [section, setSection] = useState("");
+  const [copied, setCopied] = useState(false);
+
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const [selectedDate, setSelectedDate] = useState(todayStr);
+  const isToday = selectedDate === todayStr;
+  const dayAttendance = attendance[selectedDate] || {};
+  const selectedDateLabel = new Date(selectedDate + "T00:00:00").toLocaleDateString(undefined, {
+    weekday: "short",
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  });
+
+  const classes = useMemo(
+    () => [...new Set(students.map((s) => s._class).filter(Boolean))].sort(),
+    [students]
+  );
+  const sections = useMemo(
+    () =>
+      [...new Set(
+        students.filter((s) => !className || s._class === className).map((s) => s._section).filter(Boolean)
+      )].sort(),
+    [students, className]
+  );
+
+  // Default to the first available class/section once the roster loads.
+  useEffect(() => {
+    if (!ready) return;
+    if (!className && classes.length) setClassName(classes[0]);
+  }, [ready, classes, className]);
+  useEffect(() => {
+    if (!ready) return;
+    if (className && !section && sections.length) setSection(sections[0]);
+  }, [ready, className, sections, section]);
+
+  const scoped = useMemo(
+    () =>
+      students.filter(
+        (s) => (!className || s._class === className) && (!section || s._section === section)
+      ),
+    [students, className, section]
+  );
+
+  const presentList = scoped.filter((s) => dayAttendance[s._id] === "present");
+  const absentList = scoped.filter((s) => dayAttendance[s._id] === "absent");
+  const classLabel = className ? `${className}${section ? ` '${section}'` : ""}` : "—";
+
+  const buildShareText = () => {
+    const lines = [
+      `📋 ${isToday ? "Today's" : selectedDateLabel} Attendance – ${classLabel}`,
+      `📅 ${selectedDateLabel}`,
+      "",
+      `Present: ${presentList.length}`,
+      `Absent: ${absentList.length}`,
+    ];
+    if (absentList.length) {
+      lines.push("", "Absentees:");
+      absentList.forEach((s, i) => lines.push(`${i + 1}. ${s._name}`));
+    }
+    return lines.join("\n");
+  };
+
+  const copySummary = async () => {
+    const text = buildShareText();
+    try {
+      await navigator.clipboard.writeText(text);
+    } catch (e) {
+      // Fallback for browsers/contexts without clipboard API access.
+      const ta = document.createElement("textarea");
+      ta.value = text;
+      ta.style.position = "fixed";
+      ta.style.opacity = "0";
+      document.body.appendChild(ta);
+      ta.focus();
+      ta.select();
+      try { document.execCommand("copy"); } catch (err) {}
+      document.body.removeChild(ta);
+    }
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  return (
+    <div className="mb-4">
+      <div className="mb-1 flex items-center justify-between">
+        <h2 className="text-sm font-semibold uppercase tracking-wide" style={{ color: THEME.inkSoft, letterSpacing: "0.1em" }}>
+          {isToday ? "Today's Attendance" : "Attendance"}
+        </h2>
+        <button onClick={() => setTab("attendance")} className="text-xs font-semibold" style={{ color: THEME.green }}>
+          Mark attendance →
+        </button>
+      </div>
+
+      <div className="rounded-3xl p-4 sm:p-5" style={{ background: THEME.paper, border: `1px solid ${THEME.line}` }}>
+        {!ready ? (
+          <div className="text-sm text-center py-4" style={{ color: THEME.inkSoft }}>Loading…</div>
+        ) : classes.length === 0 ? (
+          <div className="text-sm text-center py-4" style={{ color: THEME.inkSoft }}>
+            Import a student list from the Students tab to see attendance here.
+          </div>
+        ) : (
+          <React.Fragment>
+            <div className="flex items-center justify-between gap-2 mb-2">
+              <div className="relative flex-1">
+                <Icon glyph="calendar" size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                <input
+                  type="date"
+                  value={selectedDate}
+                  max={todayStr}
+                  onChange={(e) => e.target.value && setSelectedDate(e.target.value)}
+                  className="w-full pl-7 pr-2 py-1.5 text-xs font-semibold rounded-xl outline-none"
+                  style={{ border: `1px solid ${THEME.paperDark}`, background: THEME.chalk, color: THEME.ink }}
+                />
+              </div>
+              {!isToday && (
+                <button
+                  onClick={() => setSelectedDate(todayStr)}
+                  className="text-xs font-semibold px-2.5 py-1.5 rounded-xl flex-shrink-0"
+                  style={{ background: THEME.boardGreenSoft, color: THEME.boardGreen }}
+                >
+                  Today
+                </button>
+              )}
+            </div>
+
+            <div className="grid grid-cols-2 gap-2">
+              <select
+                value={className}
+                onChange={(e) => { setClassName(e.target.value); setSection(""); }}
+                className="px-3 py-2 text-sm rounded-xl outline-none"
+                style={{ border: `1px solid ${THEME.paperDark}`, background: THEME.chalk }}
+              >
+                {classes.map((c) => <option key={c} value={c}>{c}</option>)}
+              </select>
+              <select
+                value={section}
+                onChange={(e) => setSection(e.target.value)}
+                className="px-3 py-2 text-sm rounded-xl outline-none"
+                style={{ border: `1px solid ${THEME.paperDark}`, background: THEME.chalk }}
+              >
+                <option value="">All sections</option>
+                {sections.map((s) => <option key={s} value={s}>{s}</option>)}
+              </select>
+            </div>
+
+            <div className="mt-3 flex items-center justify-between gap-2">
+              <div className="text-base font-semibold" style={{ color: THEME.ink, fontFamily: "'Baloo 2', sans-serif" }}>
+                {classLabel}
+              </div>
+              {!isToday && (
+                <div className="text-xs font-semibold px-2 py-1 rounded-xl" style={{ background: THEME.marigoldSoft, color: "#8A6300" }}>
+                  {selectedDateLabel}
+                </div>
+              )}
+            </div>
+
+            <div className="mt-3 flex gap-3">
+              <div
+                className="flex-1 rounded-xl px-3 py-2.5 text-center"
+                style={{ background: THEME.greenSoft, border: `1px solid ${THEME.line}` }}
+              >
+                <div className="text-xs uppercase tracking-wide font-semibold" style={{ color: THEME.greenDark, letterSpacing: "0.08em" }}>
+                  Present
+                </div>
+                <div className="text-xl font-bold" style={{ color: THEME.greenDark, fontFamily: "'Baloo 2', sans-serif" }}>
+                  {presentList.length}
+                </div>
+              </div>
+              <div
+                className="flex-1 rounded-xl px-3 py-2.5 text-center"
+                style={{ background: "#F7E4DC", border: `1px solid ${THEME.line}` }}
+              >
+                <div className="text-xs uppercase tracking-wide font-semibold" style={{ color: THEME.coral, letterSpacing: "0.08em" }}>
+                  Absent
+                </div>
+                <div className="text-xl font-bold" style={{ color: THEME.coral, fontFamily: "'Baloo 2', sans-serif" }}>
+                  {absentList.length}
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-3">
+              <div className="text-xs font-semibold uppercase tracking-wide mb-1.5" style={{ color: THEME.inkSoft, letterSpacing: "0.08em" }}>
+                Absentee{absentList.length === 1 ? "" : "s"}
+              </div>
+              {absentList.length === 0 ? (
+                <div className="text-sm px-1 py-1" style={{ color: THEME.inkSoft }}>
+                  {scoped.length === 0 ? "No students in this class/section." : "No absentees marked yet."}
+                </div>
+              ) : (
+                <div className="rounded-xl overflow-hidden" style={{ border: `1px solid ${THEME.paperDark}` }}>
+                  {absentList.map((s, i) => (
+                    <div
+                      key={s._id}
+                      className="px-3 py-2 text-sm"
+                      style={{
+                        color: THEME.ink,
+                        background: i % 2 ? THEME.paper : THEME.chalk,
+                        borderTop: i ? `1px solid ${THEME.paperDark}` : "none",
+                      }}
+                    >
+                      {i + 1}. {s._name}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <button
+              onClick={copySummary}
+              className="mt-3 w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold"
+              style={{
+                background: copied ? THEME.green : THEME.chrome,
+                color: THEME.chromeText,
+                transition: "background 0.2s ease",
+              }}
+            >
+              <Icon glyph="clipboard" size={15} />
+              {copied ? "Copied! Paste it in WhatsApp" : "Copy summary for WhatsApp"}
+            </button>
+          </React.Fragment>
+        )}
+      </div>
     </div>
   );
 }
@@ -786,7 +1060,7 @@ function TranslatorSheet({ onClose }) {
             <button
               key={l.code}
               onClick={() => setFrom(l.code)}
-              className="text-xs font-bold px-3 py-2 rounded-lg border-2 text-left"
+              className="text-xs font-bold px-3 py-2 rounded-2xl border-2 text-left"
               style={
                 from === l.code
                   ? { background: THEME.greenSoft, color: THEME.greenDark, borderColor: THEME.green }
@@ -810,7 +1084,7 @@ function TranslatorSheet({ onClose }) {
             <button
               key={l.code}
               onClick={() => setTo(l.code)}
-              className="text-xs font-bold px-3 py-2 rounded-lg border-2 text-left"
+              className="text-xs font-bold px-3 py-2 rounded-2xl border-2 text-left"
               style={
                 to === l.code
                   ? { background: THEME.marigoldSoft, color: "#8A6300", borderColor: THEME.marigold }
@@ -836,7 +1110,7 @@ function TranslatorSheet({ onClose }) {
         onClick={translate}
         disabled={!text.trim() || loading || from === to}
         className="w-full py-3 rounded-xl text-white font-semibold disabled:opacity-40 mb-2"
-        style={{ background: THEME.green, fontFamily: "Fraunces, serif" }}
+        style={{ background: THEME.green, fontFamily: "'Baloo 2', sans-serif" }}
       >
         {loading ? "Translating…" : "Translate"}
       </button>
@@ -1080,7 +1354,7 @@ function TamilCalendarSheet({ onClose }) {
         <div className="text-xs uppercase tracking-widest" style={{ color: THEME.greenDark, letterSpacing: "0.1em" }}>
           {weekday}
         </div>
-        <div className="mt-1 text-3xl font-bold" style={{ fontFamily: "Fraunces, serif", color: THEME.ink }}>
+        <div className="mt-1 text-3xl font-bold" style={{ fontFamily: "'Baloo 2', sans-serif", color: THEME.ink }}>
           {tamilDate.day} {tamilDate.month}
         </div>
         <div className="mt-1 text-sm" style={{ color: THEME.inkSoft }}>
@@ -1104,7 +1378,7 @@ function TamilCalendarSheet({ onClose }) {
             ["Yamagandam", panchangam.yamagandam],
             ["Gulika Kalam", panchangam.gulikaKalam],
           ].map(([label, value]) => (
-            <div key={label} className="rounded-lg p-2.5" style={{ background: THEME.chalk, border: `1px solid ${THEME.line}` }}>
+            <div key={label} className="rounded-2xl p-2.5" style={{ background: THEME.chalk, border: `1px solid ${THEME.line}` }}>
               <div className="uppercase" style={{ color: THEME.inkSoft, letterSpacing: "0.06em", fontSize: "10px" }}>{label}</div>
               <div className="text-sm font-semibold mt-0.5" style={{ color: THEME.ink }}>{value}</div>
             </div>
@@ -1124,7 +1398,7 @@ function TamilCalendarSheet({ onClose }) {
         target="_blank"
         rel="noopener noreferrer"
         className="mt-4 block text-center py-3 rounded-xl text-white font-semibold"
-        style={{ background: THEME.green, fontFamily: "Fraunces, serif" }}
+        style={{ background: THEME.green, fontFamily: "'Baloo 2', sans-serif" }}
       >
         Cross-check on Nithra ↗
       </a>
@@ -1226,7 +1500,7 @@ function DictionarySheet({ onClose }) {
         <div className="space-y-3" style={{ maxHeight: "55vh", overflowY: "auto" }}>
           {result.hits.map((h) => (
             <div key={h.term} className="rounded-xl p-3" style={{ background: THEME.chalk, border: `1px solid ${THEME.line}` }}>
-              <div className="text-base font-semibold" style={{ fontFamily: "Fraunces, serif", color: THEME.ink }}>{h.term}</div>
+              <div className="text-base font-semibold" style={{ fontFamily: "'Baloo 2', sans-serif", color: THEME.ink }}>{h.term}</div>
               <div className="mt-1 text-sm" style={{ color: THEME.inkSoft }}>{h.definition}</div>
               <div className="mt-1.5 text-xs flex gap-3" style={{ color: THEME.greenDark, fontFamily: "'JetBrains Mono', monospace" }}>
                 <span>தமிழ்: {h.ta || "—"}</span>
@@ -1240,7 +1514,7 @@ function DictionarySheet({ onClose }) {
       {result?.type === "general" && (
         <div style={{ maxHeight: "55vh", overflowY: "auto" }}>
           <div className="flex items-baseline gap-2 mb-2">
-            <p className="text-lg font-semibold" style={{ fontFamily: "Fraunces, serif", color: THEME.ink }}>{result.word}</p>
+            <p className="text-lg font-semibold" style={{ fontFamily: "'Baloo 2', sans-serif", color: THEME.ink }}>{result.word}</p>
             {result.phonetic && <p className="text-sm" style={{ color: THEME.inkSoft }}>{result.phonetic}</p>}
           </div>
           {result.meanings.map((m, mi) => (
@@ -1448,7 +1722,7 @@ function StudentsTab({ students, setStudents, ready }) {
   return (
     <div>
       {/* Import */}
-      <div className="rounded-sm p-4 sm:p-5" style={{ background: THEME.paper, border: `1px solid ${THEME.paperDark}` }}>
+      <div className="rounded-xl p-4 sm:p-5" style={{ background: THEME.paper, border: `1px solid ${THEME.paperDark}` }}>
         <h2 className="text-sm font-semibold uppercase tracking-wide" style={{ color: THEME.inkSoft, letterSpacing: "0.1em" }}>
           Import Student List
         </h2>
@@ -1459,7 +1733,7 @@ function StudentsTab({ students, setStudents, ready }) {
         <div className="mt-3 flex flex-col sm:flex-row items-start sm:items-center gap-3">
           <button
             onClick={() => fileRef.current?.click()}
-            className="flex items-center gap-2 text-sm px-4 py-2 rounded-sm text-white"
+            className="flex items-center gap-2 text-sm px-4 py-2 rounded-xl text-white"
             style={{ background: THEME.boardGreen }}
           >
             <Icon glyph="upload" size={15} />
@@ -1483,7 +1757,7 @@ function StudentsTab({ students, setStudents, ready }) {
           )}
         </div>
         {importError && (
-          <div className="mt-3 text-xs px-3 py-2 rounded-sm" style={{ background: "#F6E4DD", color: THEME.coral }}>
+          <div className="mt-3 text-xs px-3 py-2 rounded-xl" style={{ background: "#F6E4DD", color: THEME.coral }}>
             {importError}
           </div>
         )}
@@ -1494,7 +1768,7 @@ function StudentsTab({ students, setStudents, ready }) {
           </div>
         )}
         {columns.some((c) => SENSITIVE_HINT_KEYWORDS.some((k) => c.toLowerCase().includes(k))) && (
-          <div className="mt-3 text-xs px-3 py-2 rounded-sm" style={{ background: THEME.marigoldSoft, color: THEME.ink }}>
+          <div className="mt-3 text-xs px-3 py-2 rounded-xl" style={{ background: THEME.marigoldSoft, color: THEME.ink }}>
             This list includes sensitive personal details (Aadhaar, contact, address, family info). Keep this
             device secure and avoid hosting this data publicly.
           </div>
@@ -1504,7 +1778,7 @@ function StudentsTab({ students, setStudents, ready }) {
       <LeafDivider />
 
       {/* Filters */}
-      <div className="rounded-sm p-4 sm:p-5" style={{ background: THEME.paper, border: `1px solid ${THEME.paperDark}` }}>
+      <div className="rounded-xl p-4 sm:p-5" style={{ background: THEME.paper, border: `1px solid ${THEME.paperDark}` }}>
         <h2 className="text-sm font-semibold uppercase tracking-wide" style={{ color: THEME.inkSoft, letterSpacing: "0.1em" }}>
           Find Students
         </h2>
@@ -1518,7 +1792,7 @@ function StudentsTab({ students, setStudents, ready }) {
               setSection("");
               setSelected(null);
             }}
-            className="px-3 py-2 text-sm rounded-sm outline-none"
+            className="px-3 py-2 text-sm rounded-xl outline-none"
             style={{ border: `1px solid ${THEME.paperDark}`, background: THEME.chalk }}
           >
             <option value="">Academic year — all</option>
@@ -1534,7 +1808,7 @@ function StudentsTab({ students, setStudents, ready }) {
               setSection("");
               setSelected(null);
             }}
-            className="px-3 py-2 text-sm rounded-sm outline-none"
+            className="px-3 py-2 text-sm rounded-xl outline-none"
             style={{ border: `1px solid ${THEME.paperDark}`, background: THEME.chalk }}
           >
             <option value="">Class — all</option>
@@ -1549,7 +1823,7 @@ function StudentsTab({ students, setStudents, ready }) {
               setSection(e.target.value);
               setSelected(null);
             }}
-            className="px-3 py-2 text-sm rounded-sm outline-none"
+            className="px-3 py-2 text-sm rounded-xl outline-none"
             style={{ border: `1px solid ${THEME.paperDark}`, background: THEME.chalk }}
           >
             <option value="">Section — all</option>
@@ -1567,14 +1841,14 @@ function StudentsTab({ students, setStudents, ready }) {
                 setSelected(null);
               }}
               placeholder="Student name…"
-              className="w-full pl-8 pr-3 py-2 text-sm rounded-sm outline-none"
+              className="w-full pl-8 pr-3 py-2 text-sm rounded-xl outline-none"
               style={{ border: `1px solid ${THEME.paperDark}`, background: THEME.chalk }}
             />
           </div>
         </div>
 
         {nameQuery && !selected && (
-          <div className="mt-2 rounded-sm overflow-hidden" style={{ border: `1px solid ${THEME.paperDark}` }}>
+          <div className="mt-2 rounded-xl overflow-hidden" style={{ border: `1px solid ${THEME.paperDark}` }}>
             {matches.length === 0 ? (
               <div className="text-sm px-3 py-2" style={{ color: THEME.inkSoft, background: THEME.chalk }}>
                 No matching students in this scope.
@@ -1599,7 +1873,7 @@ function StudentsTab({ students, setStudents, ready }) {
 
         {selected ? (
           <div
-            className="mt-4 rounded-sm p-4"
+            className="mt-4 rounded-xl p-4"
             style={{ background: THEME.chalk, borderTop: `3px solid ${THEME.marigold}`, border: `1px solid ${THEME.paperDark}` }}
           >
             <div className="flex items-center justify-between">
@@ -1610,7 +1884,7 @@ function StudentsTab({ students, setStudents, ready }) {
                 <Icon glyph="x" size={14} style={{ color: THEME.inkSoft }} />
               </button>
             </div>
-            <div className="mt-1 text-xl" style={{ fontFamily: "Fraunces, serif", fontWeight: 600 }}>
+            <div className="mt-1 text-xl" style={{ fontFamily: "'Baloo 2', sans-serif", fontWeight: 600 }}>
               {selected._name}
             </div>
             <div className="mt-2 grid grid-cols-2 gap-y-1 text-sm" style={{ color: THEME.inkSoft }}>
@@ -1635,7 +1909,7 @@ function StudentsTab({ students, setStudents, ready }) {
                 <div className="flex items-center gap-2">
                   <button
                     onClick={() => window.print()}
-                    className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-sm text-white"
+                    className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-xl text-white"
                     style={{ background: THEME.greenDark }}
                   >
                     <Icon glyph="print" size={13} />
@@ -1646,7 +1920,7 @@ function StudentsTab({ students, setStudents, ready }) {
                     <select
                       value={pageSize}
                       onChange={(e) => setPageSize(Number(e.target.value))}
-                      className="px-2 py-1 text-xs rounded-sm outline-none"
+                      className="px-2 py-1 text-xs rounded-xl outline-none"
                       style={{ border: `1px solid ${THEME.paperDark}`, background: THEME.chalk }}
                     >
                       {PAGE_SIZE_OPTIONS.map((n) => (
@@ -1657,7 +1931,7 @@ function StudentsTab({ students, setStudents, ready }) {
                 </div>
               </div>
 
-              <div className="overflow-x-auto rounded-sm" style={{ border: `1px solid ${THEME.paperDark}` }}>
+              <div className="overflow-x-auto rounded-xl" style={{ border: `1px solid ${THEME.paperDark}` }}>
                 <table className="text-xs border-collapse" style={{ minWidth: Math.max(480, columns.length * 130) }}>
                   <thead>
                     <tr>
@@ -1707,7 +1981,7 @@ function StudentsTab({ students, setStudents, ready }) {
                     <button
                       onClick={() => setPage((p) => Math.max(1, p - 1))}
                       disabled={page <= 1}
-                      className="px-3 py-1 rounded-sm"
+                      className="px-3 py-1 rounded-xl"
                       style={{ border: `1px solid ${THEME.paperDark}`, opacity: page <= 1 ? 0.5 : 1 }}
                     >
                       Prev
@@ -1715,7 +1989,7 @@ function StudentsTab({ students, setStudents, ready }) {
                     <button
                       onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
                       disabled={page >= totalPages}
-                      className="px-3 py-1 rounded-sm"
+                      className="px-3 py-1 rounded-xl"
                       style={{ border: `1px solid ${THEME.paperDark}`, opacity: page >= totalPages ? 0.5 : 1 }}
                     >
                       Next
@@ -1729,7 +2003,7 @@ function StudentsTab({ students, setStudents, ready }) {
             <div className="print-area" style={{ display: "none" }}>
               <div className="print-header">
                 <div style={{ fontWeight: "bold" }}>
-                  Biology &amp; Botany Desk — Student List
+                  Reena's Student's Tracking — Student List
                 </div>
                 <div>
                   {[
@@ -1771,6 +2045,205 @@ function StudentsTab({ students, setStudents, ready }) {
 }
 
 // ---------------------------------------------------------------------------
+// Attendance — mark today's present/absent per student, filtered by
+// academic year / class / section / name, same filtering pattern as Students.
+// ---------------------------------------------------------------------------
+function AttendanceTab({ students, attendance, setAttendance, ready }) {
+  const [year, setYear] = useState("");
+  const [className, setClassName] = useState("");
+  const [section, setSection] = useState("");
+  const [nameQuery, setNameQuery] = useState("");
+
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const [selectedDate, setSelectedDate] = useState(todayStr);
+  const isToday = selectedDate === todayStr;
+  const dayAttendance = attendance[selectedDate] || {};
+
+  const years = useMemo(
+    () => [...new Set(students.map((s) => s._year).filter(Boolean))].sort().reverse(),
+    [students]
+  );
+  const classes = useMemo(
+    () =>
+      [...new Set(students.filter((s) => !year || s._year === year).map((s) => s._class).filter(Boolean))].sort(),
+    [students, year]
+  );
+  const sections = useMemo(
+    () =>
+      [...new Set(
+        students
+          .filter((s) => (!year || s._year === year) && (!className || s._class === className))
+          .map((s) => s._section)
+          .filter(Boolean)
+      )].sort(),
+    [students, year, className]
+  );
+
+  const scoped = useMemo(() => {
+    const q = nameQuery.trim().toLowerCase();
+    return students.filter(
+      (s) =>
+        (!year || s._year === year) &&
+        (!className || s._class === className) &&
+        (!section || s._section === section) &&
+        (!q || s._name.toLowerCase().includes(q))
+    );
+  }, [students, year, className, section, nameQuery]);
+
+  const scopedPresent = scoped.filter((s) => dayAttendance[s._id] === "present").length;
+  const scopedAbsent = scoped.filter((s) => dayAttendance[s._id] === "absent").length;
+
+  const markAttendance = (studentId, status) => {
+    const dayRecord = { ...(attendance[selectedDate] || {}) };
+    if (dayRecord[studentId] === status) delete dayRecord[studentId]; // tap again to clear
+    else dayRecord[studentId] = status;
+    setAttendance({ ...attendance, [selectedDate]: dayRecord });
+  };
+
+  return (
+    <div>
+      <div className="rounded-3xl p-4 sm:p-5" style={{ background: THEME.paper, border: `1px solid ${THEME.line}` }}>
+        <div className="flex items-center justify-between gap-2">
+          <h2 className="text-sm font-semibold uppercase tracking-wide" style={{ color: THEME.inkSoft, letterSpacing: "0.1em" }}>
+            Attendance
+          </h2>
+          <div className="flex items-center gap-1.5">
+            {!isToday && (
+              <button
+                onClick={() => setSelectedDate(todayStr)}
+                className="text-xs font-semibold px-2.5 py-1 rounded-xl"
+                style={{ background: THEME.boardGreenSoft, color: THEME.boardGreen }}
+              >
+                Today
+              </button>
+            )}
+            <div className="relative">
+              <Icon glyph="calendar" size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+              <input
+                type="date"
+                value={selectedDate}
+                max={todayStr}
+                onChange={(e) => e.target.value && setSelectedDate(e.target.value)}
+                className="pl-7 pr-2 py-1.5 text-xs font-semibold rounded-xl outline-none"
+                style={{ border: `1px solid ${THEME.paperDark}`, background: THEME.chalk, color: THEME.ink }}
+              />
+            </div>
+          </div>
+        </div>
+        {!isToday && (
+          <div
+            className="mt-2 text-xs font-semibold px-3 py-1.5 rounded-xl inline-block"
+            style={{ background: THEME.marigoldSoft, color: "#8A6300" }}
+          >
+            Viewing {new Date(selectedDate + "T00:00:00").toLocaleDateString(undefined, { weekday: "long", year: "numeric", month: "short", day: "numeric" })}
+          </div>
+        )}
+
+        <div className="mt-3 grid grid-cols-1 sm:grid-cols-4 gap-2">
+          <select
+            value={year}
+            onChange={(e) => { setYear(e.target.value); setClassName(""); setSection(""); }}
+            className="px-3 py-2 text-sm rounded-xl outline-none"
+            style={{ border: `1px solid ${THEME.paperDark}`, background: THEME.chalk }}
+          >
+            <option value="">Academic year — all</option>
+            {years.map((y) => <option key={y} value={y}>{y}</option>)}
+          </select>
+          <select
+            value={className}
+            onChange={(e) => { setClassName(e.target.value); setSection(""); }}
+            className="px-3 py-2 text-sm rounded-xl outline-none"
+            style={{ border: `1px solid ${THEME.paperDark}`, background: THEME.chalk }}
+          >
+            <option value="">Class — all</option>
+            {classes.map((c) => <option key={c} value={c}>{c}</option>)}
+          </select>
+          <select
+            value={section}
+            onChange={(e) => setSection(e.target.value)}
+            className="px-3 py-2 text-sm rounded-xl outline-none"
+            style={{ border: `1px solid ${THEME.paperDark}`, background: THEME.chalk }}
+          >
+            <option value="">Section — all</option>
+            {sections.map((s) => <option key={s} value={s}>{s}</option>)}
+          </select>
+          <div className="relative">
+            <Icon glyph="search" size={14} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: THEME.inkSoft }} />
+            <input
+              value={nameQuery}
+              onChange={(e) => setNameQuery(e.target.value)}
+              placeholder="Student name…"
+              className="w-full pl-8 pr-3 py-2 text-sm rounded-xl outline-none"
+              style={{ border: `1px solid ${THEME.paperDark}`, background: THEME.chalk }}
+            />
+          </div>
+        </div>
+
+        <div className="mt-3 text-xs" style={{ color: THEME.inkSoft }}>
+          {scoped.length} student{scoped.length === 1 ? "" : "s"} in this scope
+          {"  ·  "}
+          <span style={{ color: THEME.green, fontWeight: 600 }}>{scopedPresent} present</span>
+          {"  ·  "}
+          <span style={{ color: THEME.coral, fontWeight: 600 }}>{scopedAbsent} absent</span>
+        </div>
+
+        <div className="mt-3 rounded-xl overflow-hidden" style={{ border: `1px solid ${THEME.paperDark}`, maxHeight: "60vh", overflowY: "auto" }}>
+          {!ready && (
+            <div className="text-sm px-3 py-4 text-center" style={{ color: THEME.inkSoft }}>Loading…</div>
+          )}
+          {ready && scoped.length === 0 && (
+            <div className="text-sm px-3 py-4 text-center" style={{ color: THEME.inkSoft }}>
+              No students to show. Import a student list from the Students tab first.
+            </div>
+          )}
+          {scoped.map((s, i) => {
+            const status = dayAttendance[s._id];
+            return (
+              <div
+                key={s._id}
+                className="flex items-center justify-between gap-2 px-3 py-2.5"
+                style={{ background: i % 2 ? THEME.paper : THEME.chalk, borderTop: i ? `1px solid ${THEME.paperDark}` : "none" }}
+              >
+                <div className="min-w-0">
+                  <div className="text-sm font-medium truncate" style={{ color: THEME.ink }}>{s._name}</div>
+                  <div className="text-xs" style={{ color: THEME.inkSoft, fontFamily: "'JetBrains Mono', monospace" }}>
+                    {s._class}{s._section ? `-${s._section}` : ""}
+                  </div>
+                </div>
+                <div className="flex gap-1.5 flex-shrink-0">
+                  <button
+                    onClick={() => markAttendance(s._id, "present")}
+                    className="px-3 py-1.5 rounded-xl text-xs font-semibold"
+                    style={{
+                      background: status === "present" ? THEME.green : THEME.chalk,
+                      color: status === "present" ? "#fff" : THEME.inkSoft,
+                      border: `1px solid ${status === "present" ? THEME.green : THEME.paperDark}`,
+                    }}
+                  >
+                    Present
+                  </button>
+                  <button
+                    onClick={() => markAttendance(s._id, "absent")}
+                    className="px-3 py-1.5 rounded-xl text-xs font-semibold"
+                    style={{
+                      background: status === "absent" ? THEME.coral : THEME.chalk,
+                      color: status === "absent" ? "#fff" : THEME.inkSoft,
+                      border: `1px solid ${status === "absent" ? THEME.coral : THEME.paperDark}`,
+                    }}
+                  >
+                    Absent
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Timetable — editable weekly grid, persisted
 // ---------------------------------------------------------------------------
 function TimetableTab({ timetable, setTimetable, ready }) {
@@ -1796,7 +2269,7 @@ function TimetableTab({ timetable, setTimetable, ready }) {
 
   return (
     <div>
-      <div className="rounded-sm p-4 sm:p-5" style={{ background: THEME.paper, border: `1px solid ${THEME.paperDark}` }}>
+      <div className="rounded-xl p-4 sm:p-5" style={{ background: THEME.paper, border: `1px solid ${THEME.paperDark}` }}>
         <div className="flex items-center justify-between">
           <h2 className="text-sm font-semibold uppercase tracking-wide" style={{ color: THEME.inkSoft, letterSpacing: "0.1em" }}>
             Weekly Timetable
@@ -1810,7 +2283,7 @@ function TimetableTab({ timetable, setTimetable, ready }) {
         <div className="flex gap-1.5 mt-4 overflow-x-auto pb-1">
           <button
             onClick={() => setSelectedDay(null)}
-            className="px-3 py-1.5 text-xs rounded-sm whitespace-nowrap"
+            className="px-3 py-1.5 text-xs rounded-xl whitespace-nowrap"
             style={{
               background: selectedDay === null ? THEME.boardGreen : THEME.chalk,
               color: selectedDay === null ? THEME.chalk : THEME.inkSoft,
@@ -1827,7 +2300,7 @@ function TimetableTab({ timetable, setTimetable, ready }) {
               <button
                 key={d}
                 onClick={() => setSelectedDay(i)}
-                className="px-3 py-1.5 text-xs rounded-sm whitespace-nowrap"
+                className="px-3 py-1.5 text-xs rounded-xl whitespace-nowrap"
                 style={{
                   background: active ? THEME.marigold : THEME.chalk,
                   color: active ? THEME.chalk : THEME.inkSoft,
@@ -1895,20 +2368,20 @@ function TimetableTab({ timetable, setTimetable, ready }) {
                                 onChange={(e) => setDraft(e.target.value)}
                                 onKeyDown={(e) => e.key === "Enter" && saveCell()}
                                 placeholder="e.g. 11-A Botany"
-                                className="w-full px-1.5 py-1 text-xs rounded-sm outline-none"
+                                className="w-full px-1.5 py-1 text-xs rounded-xl outline-none"
                                 style={{ border: `1px solid ${THEME.moss}` }}
                               />
                               <div className="flex gap-1">
                                 <button
                                   onClick={saveCell}
-                                  className="flex-1 text-xs py-1 rounded-sm text-white"
+                                  className="flex-1 text-xs py-1 rounded-xl text-white"
                                   style={{ background: THEME.moss }}
                                 >
                                   Save
                                 </button>
                                 <button
                                   onClick={() => setEditingKey(null)}
-                                  className="text-xs px-2 py-1 rounded-sm"
+                                  className="text-xs px-2 py-1 rounded-xl"
                                   style={{ border: `1px solid ${THEME.paperDark}` }}
                                 >
                                   <Icon glyph="x" size={12} />
@@ -1918,7 +2391,7 @@ function TimetableTab({ timetable, setTimetable, ready }) {
                           ) : (
                             <button
                               onClick={() => openCell(dayIdx, p)}
-                              className="w-full text-left text-xs px-1.5 py-2 rounded-sm"
+                              className="w-full text-left text-xs px-1.5 py-2 rounded-xl"
                               style={{ minHeight: "2.25rem", color: value ? THEME.ink : THEME.paperDark, background: "transparent" }}
                             >
                               {value || "+"}
@@ -1937,23 +2410,23 @@ function TimetableTab({ timetable, setTimetable, ready }) {
             <div className="flex items-center justify-between mb-2">
               <button
                 onClick={() => setSelectedDay((d) => (d - 1 + DAYS.length) % DAYS.length)}
-                className="px-3 py-1.5 text-xs rounded-sm"
+                className="px-3 py-1.5 text-xs rounded-xl"
                 style={{ border: `1px solid ${THEME.paperDark}`, color: THEME.inkSoft }}
               >
                 ← {DAYS[(selectedDay - 1 + DAYS.length) % DAYS.length]}
               </button>
-              <div className="text-sm font-semibold" style={{ color: THEME.ink, fontFamily: "Fraunces, serif" }}>
+              <div className="text-sm font-semibold" style={{ color: THEME.ink, fontFamily: "'Baloo 2', sans-serif" }}>
                 {DAYS[selectedDay]}{selectedDay === TODAY_INDEX ? " (Today)" : ""}
               </div>
               <button
                 onClick={() => setSelectedDay((d) => (d + 1) % DAYS.length)}
-                className="px-3 py-1.5 text-xs rounded-sm"
+                className="px-3 py-1.5 text-xs rounded-xl"
                 style={{ border: `1px solid ${THEME.paperDark}`, color: THEME.inkSoft }}
               >
                 {DAYS[(selectedDay + 1) % DAYS.length]} →
               </button>
             </div>
-            <div className="rounded-sm overflow-hidden" style={{ border: `1px solid ${THEME.paperDark}` }}>
+            <div className="rounded-xl overflow-hidden" style={{ border: `1px solid ${THEME.paperDark}` }}>
               {PERIODS.map((p, i) => {
                 const key = `${selectedDay}-${p}`;
                 const value = timetable[key];
@@ -1978,15 +2451,15 @@ function TimetableTab({ timetable, setTimetable, ready }) {
                           onChange={(e) => setDraft(e.target.value)}
                           onKeyDown={(e) => e.key === "Enter" && saveCell()}
                           placeholder="e.g. 11-A Botany"
-                          className="flex-1 px-2 py-1.5 text-sm rounded-sm outline-none"
+                          className="flex-1 px-2 py-1.5 text-sm rounded-xl outline-none"
                           style={{ border: `1px solid ${THEME.moss}` }}
                         />
-                        <button onClick={saveCell} className="text-xs px-3 py-1.5 rounded-sm text-white" style={{ background: THEME.moss }}>
+                        <button onClick={saveCell} className="text-xs px-3 py-1.5 rounded-xl text-white" style={{ background: THEME.moss }}>
                           Save
                         </button>
                         <button
                           onClick={() => setEditingKey(null)}
-                          className="text-xs px-2 py-1.5 rounded-sm"
+                          className="text-xs px-2 py-1.5 rounded-xl"
                           style={{ border: `1px solid ${THEME.paperDark}` }}
                         >
                           <Icon glyph="x" size={12} />
@@ -1995,7 +2468,7 @@ function TimetableTab({ timetable, setTimetable, ready }) {
                     ) : (
                       <button
                         onClick={() => openCell(selectedDay, p)}
-                        className="flex-1 text-left text-sm px-2 py-1.5 rounded-sm"
+                        className="flex-1 text-left text-sm px-2 py-1.5 rounded-xl"
                         style={{ color: value ? THEME.ink : THEME.inkSoft }}
                       >
                         {value || "+ Add class"}
