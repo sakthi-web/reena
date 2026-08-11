@@ -1,0 +1,2754 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Reena's Student's Tracking</title>
+
+<!-- PWA -->
+<link rel="manifest" href="manifest.json" />
+<meta name="theme-color" content="#6D5EF5" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="Reena's Tracking" />
+<link rel="icon" href="icon-192.png" />
+<link rel="apple-touch-icon" href="icon-192.png" />
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/tailwindcss/2.2.19/tailwind.min.css" />
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+  body { margin: 0; }
+</style>
+
+<script src="https://cdn.jsdelivr.net/npm/react@18/umd/react.production.min.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/react-dom@18/umd/react-dom.production.min.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/@babel/standalone@7/babel.min.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2" crossorigin="anonymous"></script>
+<script>
+  if ("serviceWorker" in navigator) {
+    window.addEventListener("load", () => {
+      navigator.serviceWorker.register("service-worker.js").catch(() => {
+        // Offline shell just won't be available this session — the app
+        // still works fine online.
+      });
+    });
+  }
+</script>
+</head>
+<body>
+<div id="root">
+  <div id="fallback-msg" style="font-family: sans-serif; padding: 24px; color: #444; max-width: 480px; margin: 0 auto;">
+    Loading…
+  </div>
+</div>
+
+<script>
+  // Safety net: if the app hasn't rendered into #root within a few seconds
+  // (e.g. a CDN script failed to load, likely due to no internet connection),
+  // show a clear message instead of leaving the page blank. Capture phase
+  // (the `true` below) is required to catch script/resource load failures,
+  // not just runtime errors inside scripts that already ran.
+  window.__appErrors = [];
+  window.addEventListener('error', function (e) {
+    var detail = e.message;
+    if (!detail && e.target && e.target.src) detail = 'Failed to load: ' + e.target.src;
+    if (!detail && e.target && e.target.tagName) detail = 'Failed to load a ' + e.target.tagName + ' resource';
+    window.__appErrors.push(detail || 'Unknown error');
+  }, true);
+  window.addEventListener('unhandledrejection', function (e) {
+    window.__appErrors.push('Unhandled promise rejection: ' + (e.reason && e.reason.message ? e.reason.message : e.reason));
+  });
+  setTimeout(function () {
+    var root = document.getElementById('root');
+    var stillPlaceholder = root && root.querySelector('#fallback-msg');
+    if (stillPlaceholder) {
+      var errs = window.__appErrors.length
+        ? '<br><br>Details:<br>' + window.__appErrors.join('<br>')
+        : '<br><br>No specific error was captured — this usually means a script is still loading slowly, or the network blocked it silently.';
+      stillPlaceholder.innerHTML =
+        'Could not load the app. This usually means one of the required scripts failed to load — ' +
+        'please check your internet connection and refresh the page.' + errs;
+    }
+  }, 8000);
+</script>
+
+<script type="text/babel" data-presets="react">
+const { useState, useEffect, useMemo, useRef } = React;
+
+// ---------------------------------------------------------------------------
+// localStorage-backed storage shim, matching the window.storage API shape
+// used by usePersistentState below (get/set only — this app doesn't need
+// delete/list). Swap this out if you later add a real backend.
+// ---------------------------------------------------------------------------
+const storage = {
+  get: async (key) => {
+    const v = window.localStorage.getItem(key);
+    if (v === null) throw new Error("not found");
+    return { key, value: v };
+  },
+  set: async (key, value) => {
+    window.localStorage.setItem(key, value);
+    return { key, value };
+  },
+};
+
+// ---------------------------------------------------------------------------
+// Supabase — free-tier project storing only Student name, academic year,
+// class, section, plus a present/absent record per student per date.
+// ---------------------------------------------------------------------------
+const SUPABASE_URL = "https://iwoevbqfumnkgvgroxgn.supabase.co";
+const SUPABASE_ANON_KEY =
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Iml3b2V2YnFmdW1ua2d2Z3JveGduIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODYyNTgzMjYsImV4cCI6MjEwMTgzNDMyNn0.ZQbb74jeEdvp31OiJ6dFCRIRIuc9n4b3nvHYv1gbGTE";
+const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+// Students live in Supabase now. Field names on the returned objects (_id,
+// _name, _class, _section, _year) match what the rest of the app already
+// expects, so only the fetch/import logic below needed to change.
+function useSupabaseStudents() {
+  const [students, setStudents] = useState([]);
+  const [ready, setReady] = useState(false);
+  const [error, setError] = useState(null);
+
+  const refresh = async () => {
+    const { data, error: err } = await supabaseClient
+      .from("students")
+      .select("*")
+      .order("name", { ascending: true });
+    if (err) {
+      setError(err.message);
+    } else {
+      setError(null);
+      setStudents(
+        (data || []).map((r) => ({
+          _id: r.id,
+          _name: r.name || "",
+          _class: r.class || "",
+          _section: r.section || "",
+          _year: r.academic_year || "Unspecified",
+        }))
+      );
+    }
+    setReady(true);
+  };
+
+  useEffect(() => {
+    refresh();
+  }, []);
+
+  // Replaces every student in `importedYear` with the freshly-imported rows
+  // (mirrors the old "re-uploading a file replaces only that year's data").
+  const importRows = async (rows, importedYear) => {
+    await supabaseClient.from("students").delete().eq("academic_year", importedYear);
+    const payload = rows.map((r) => ({
+      name: r._name,
+      academic_year: r._year,
+      class: r._class,
+      section: r._section,
+    }));
+    for (let i = 0; i < payload.length; i += 500) {
+      const { error: err } = await supabaseClient.from("students").insert(payload.slice(i, i + 500));
+      if (err) {
+        setError(err.message);
+        throw err;
+      }
+    }
+    await refresh();
+  };
+
+  return { students, ready, error, importRows, refresh };
+}
+
+// Attendance also lives in Supabase, one row per student per date. The
+// in-memory shape ({ [date]: { [studentId]: "present"|"absent" } }) matches
+// what the rest of the app already expects, so only marking/loading changed.
+function useSupabaseAttendance() {
+  const [attendance, setAttendance] = useState({});
+  const [ready, setReady] = useState(false);
+  const [error, setError] = useState(null);
+
+  const refresh = async () => {
+    const { data, error: err } = await supabaseClient
+      .from("attendance")
+      .select("student_id, date, status");
+    if (err) {
+      setError(err.message);
+    } else {
+      setError(null);
+      const next = {};
+      (data || []).forEach((r) => {
+        const day = next[r.date] || (next[r.date] = {});
+        day[r.student_id] = r.status;
+      });
+      setAttendance(next);
+    }
+    setReady(true);
+  };
+
+  useEffect(() => {
+    refresh();
+  }, []);
+
+  // Called on every Present/Absent button click. Updates local state right
+  // away, then syncs to Supabase in the background.
+  const mark = async (studentId, date, status) => {
+    setAttendance((prev) => {
+      const day = { ...(prev[date] || {}) };
+      if (status === null) delete day[studentId];
+      else day[studentId] = status;
+      return { ...prev, [date]: day };
+    });
+    try {
+      if (status === null) {
+        await supabaseClient.from("attendance").delete().eq("student_id", studentId).eq("date", date);
+      } else {
+        await supabaseClient
+          .from("attendance")
+          .upsert({ student_id: studentId, date, status }, { onConflict: "student_id,date" });
+      }
+      setError(null);
+    } catch (e) {
+      setError("Could not sync attendance to the database.");
+    }
+  };
+
+  // Mark many students at once (e.g. "mark all present") in a single
+  // network round trip instead of one request per student.
+  const markBulk = async (studentIds, date, status) => {
+    if (!studentIds.length) return;
+    setAttendance((prev) => {
+      const day = { ...(prev[date] || {}) };
+      studentIds.forEach((id) => {
+        day[id] = status;
+      });
+      return { ...prev, [date]: day };
+    });
+    try {
+      const rows = studentIds.map((student_id) => ({ student_id, date, status }));
+      await supabaseClient.from("attendance").upsert(rows, { onConflict: "student_id,date" });
+      setError(null);
+    } catch (e) {
+      setError("Could not sync attendance to the database.");
+    }
+  };
+
+  return { attendance, ready, error, mark, markBulk };
+}
+
+
+// ---------------------------------------------------------------------------
+// Lightweight icon glyphs (no external icon library dependency)
+// ---------------------------------------------------------------------------
+const ICON_GLYPHS = {
+  dashboard: "\u25A6",
+  users: "\uD83E\uDDD1\u200D\uD83C\uDF93",
+  calendar: "\uD83D\uDDD3\uFE0F",
+  upload: "\u2B06\uFE0F",
+  search: "\uD83D\uDD0D",
+  plus: "+",
+  trash: "\uD83D\uDDD1\uFE0F",
+  leaf: "\uD83C\uDF3F",
+  x: "\u2715",
+  sprout: "\uD83C\uDF31",
+  translate: "\uD83C\uDF10",
+  book: "\uD83D\uDCD6",
+  swap: "\u21C4",
+  print: "\uD83D\uDDA8\uFE0F",
+  tamilCal: "\uD83E\uDEB7",
+  bus: "\uD83D\uDE8C",
+  clipboard: "\uD83D\uDCCB",
+};
+
+function Icon({ glyph, size = 16, style = {}, className = "" }) {
+  return (
+    <span
+      className={className}
+      style={{ fontSize: size, lineHeight: 1, display: "inline-block", ...style }}
+      aria-hidden="true"
+    >
+      {ICON_GLYPHS[glyph] || ""}
+    </span>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// App logo — two higher-secondary students in Tamil Nadu govt. school
+// uniform (white shirt + navy bottoms for the boy, white shirt + check
+// pavadai for the girl), drawn as a flat original vector so it matches the
+// theme colors exactly and needs no external image.
+// ---------------------------------------------------------------------------
+function SchoolLogo({ size = 40 }) {
+  return (
+    <div
+      className="rounded-full flex items-center justify-center flex-shrink-0"
+      style={{ width: size, height: size, background: "#FFFFFF", boxShadow: "0 1px 3px rgba(0,0,0,0.15)" }}
+    >
+      <svg width={size * 0.72} height={size * 0.72} viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+        {/* Girl — left */}
+        <circle cx="17" cy="14" r="6" fill="#3A2E26" />
+        <path d="M11 13c0-3.3 2.7-6 6-6s6 2.7 6 6" fill="#3A2E26" />
+        <path d="M9.5 30c0-5.2 3.4-9.5 7.5-9.5s7.5 4.3 7.5 9.5" fill="#FFC93C" />
+        <path d="M9.5 30c0-5.2 3.4-9.5 7.5-9.5s7.5 4.3 7.5 9.5H9.5z" fill={THEME.green} opacity="0.9" />
+        <path d="M11.5 22c1.6-1 3.6-1.5 5.5-1.5s3.9.5 5.5 1.5l-1 8h-9l-1-8z" fill="#FFFFFF" />
+        <rect x="16" y="21" width="2" height="9" fill={THEME.coral} opacity="0.5" />
+        {/* Boy — right */}
+        <circle cx="32" cy="14" r="6" fill="#2A2018" />
+        <path d="M26 12.5c0-3.3 2.7-6 6-6s6 2.7 6 6c0 .5-1 .5-1.5.2-1.7-1-3-1.7-4.5-1.7s-2.8.7-4.5 1.7C27 13 26 13 26 12.5z" fill="#2A2018" />
+        <path d="M24.5 30c0-5.2 3.4-9.5 7.5-9.5s7.5 4.3 7.5 9.5h-15z" fill={THEME.boardGreen} />
+        <path d="M26.5 22c1.6-1 3.6-1.5 5.5-1.5s3.9.5 5.5 1.5l-1 8h-9l-1-8z" fill="#FFFFFF" />
+        <path d="M31 20.8 L32 23 L33 20.8" stroke={THEME.boardGreen} strokeWidth="1.2" fill="none" />
+        {/* Shared open book */}
+        <path d="M15 34c3-1.4 6.3-1.4 9 0v6c-2.7-1.4-6-1.4-9 0v-6z" fill={THEME.green} />
+        <path d="M33 34c-3-1.4-6.3-1.4-9 0v6c2.7-1.4 6-1.4 9 0v-6z" fill={THEME.coral} />
+        <path d="M24 34v6" stroke="#FFFFFF" strokeWidth="0.8" />
+      </svg>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Theme — modern "AI assistant" SaaS look: soft blue-gray base, white cards,
+// and a blue → violet gradient carried through headers and primary buttons.
+// Core Tailwind utilities only allowed, so custom hexes live here.
+// ---------------------------------------------------------------------------
+const THEME = {
+  boardGreen: "#8B5CF6",
+  boardGreenSoft: "#F1EBFF",
+  moss: "#22C55E",
+  mossLight: "#BBF7D0",
+  paper: "#FFFFFF",
+  paperDark: "#E7EBF7",
+  ink: "#1E2340",
+  inkSoft: "#6B7290",
+  chalk: "#F4F6FC",
+  marigold: "#FF9F40",
+  marigoldSoft: "#FFEBD9",
+  coral: "#FF6B6B",
+  navy: "#1E2340",
+  navySoft: "#4B4478",
+  skyLight: "#EAF1FF",
+  green: "#4F7CFF",
+  greenDark: "#3554D1",
+  greenSoft: "#E9EFFF",
+  line: "#E7ECF7",
+  chrome: "linear-gradient(135deg, #6D5EF5 0%, #4F7CFF 100%)",
+  chromeText: "#FFFFFF",
+  gradient: "linear-gradient(135deg, #6D5EF5 0%, #4F7CFF 100%)",
+};
+
+const FONTS_IMPORT =
+  "@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');";
+
+const PRINT_STYLES = `
+@media print {
+  body * { visibility: hidden; }
+  .print-area, .print-area * { visibility: visible; }
+  .print-area {
+    display: block !important;
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+  }
+  @page { size: A4 landscape; margin: 10mm; }
+  .print-area, .print-area * {
+    font-family: Arial, Helvetica, sans-serif !important;
+    color: #000 !important;
+    background: #fff !important;
+  }
+  .print-area table { width: 100%; border-collapse: collapse; font-size: 11pt; }
+  .print-area th, .print-area td {
+    border: 1px solid #000;
+    padding: 4px 6px;
+    text-align: left;
+  }
+  .print-area thead { display: table-header-group; }
+  .print-area tr { page-break-inside: avoid; }
+  .print-header { margin-bottom: 8px; font-size: 12pt; }
+}
+`;
+
+const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const PERIODS = [1, 2, 3, 4, 5, 6, 7, 8];
+const TODAY_INDEX = (() => {
+  const d = new Date().getDay(); // 0 Sun .. 6 Sat
+  return d === 0 ? -1 : d - 1; // map Mon=0..Sat=5, Sunday -> -1
+})();
+
+// Seeded from the uploaded "Teachers' Timetable 26-27" workbook, SR block
+// (Mon=0 .. Sat=5, Period 1-8). Periods left out below mean free periods.
+const DEFAULT_TIMETABLE = {
+  "0-1": "XII-B", "0-2": "XII-E", "0-4": "XI-BC", "0-5": "XI-C", "0-7": "XI-C", "0-8": "XI-C",
+  "1-1": "XII-B", "1-2": "XII-E", "1-4": "XI-BC", "1-5": "XI-C",
+  "2-1": "XII-B", "2-2": "XII-E", "2-4": "XI-BC", "2-5": "XI-C", "2-7": "XII-B", "2-8": "XII-B",
+  "3-1": "XII-B", "3-2": "XII-E", "3-4": "XI-BC", "3-5": "XI-C", "3-7": "XII-E", "3-8": "XII-E",
+  "4-1": "XII-B", "4-2": "XII-E", "4-4": "XI-BC", "4-5": "XI-C", "4-7": "XI-BC", "4-8": "XI-BC",
+};
+
+// ---------------------------------------------------------------------------
+// Persistent storage hook — reads/writes the artifact key-value store.
+// ---------------------------------------------------------------------------
+function usePersistentState(key, initialValue) {
+  const [value, setValue] = useState(initialValue);
+  const [ready, setReady] = useState(false);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const result = await storage.get(key);
+        if (!cancelled && result && result.value) {
+          setValue(JSON.parse(result.value));
+        }
+      } catch (e) {
+        // key not found yet — keep initial value
+      } finally {
+        if (!cancelled) setReady(true);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [key]);
+
+  const persist = async (next) => {
+    const resolved = typeof next === "function" ? next(value) : next;
+    setValue(resolved);
+    try {
+      const result = await storage.set(key, JSON.stringify(resolved));
+      if (!result) setError("Could not save. Your changes may not persist.");
+      else setError(null);
+    } catch (e) {
+      setError("Could not save. Your changes may not persist.");
+    }
+  };
+
+  return [value, persist, ready, error];
+}
+
+// ---------------------------------------------------------------------------
+// Small building blocks
+// ---------------------------------------------------------------------------
+function LeafDivider() {
+  return (
+    <div className="flex items-center gap-2 my-3" aria-hidden="true">
+      <span style={{ height: 1, background: THEME.moss, flex: 1, opacity: 0.5 }} />
+      <Icon glyph="leaf" size={13} style={{ color: THEME.moss }} />
+      <span style={{ height: 1, background: THEME.moss, flex: 1, opacity: 0.5 }} />
+    </div>
+  );
+}
+
+function SpecimenCard({ eyebrow, title, value, sub, accent, onClick }) {
+  return (
+    <div
+      role={onClick ? "button" : undefined}
+      tabIndex={onClick ? 0 : undefined}
+      onClick={onClick}
+      onKeyDown={(e) => {
+        if (onClick && (e.key === "Enter" || e.key === " ")) {
+          e.preventDefault();
+          onClick();
+        }
+      }}
+      className="rounded-3xl p-5 flex-1 min-w-0 transition-shadow"
+      style={{
+        background: THEME.paper,
+        border: `1px solid ${THEME.line}`,
+        borderTop: `3px solid ${accent || THEME.green}`,
+        cursor: onClick ? "pointer" : "default",
+      }}
+    >
+      <div
+        className="text-xs uppercase font-semibold tracking-widest"
+        style={{ color: THEME.inkSoft, letterSpacing: "0.14em" }}
+      >
+        {eyebrow}
+      </div>
+      <div
+        className="mt-2 text-4xl"
+        style={{ fontFamily: "'Poppins', sans-serif", color: THEME.ink, fontWeight: 600 }}
+      >
+        {value}
+      </div>
+      <div className="mt-1 text-sm" style={{ color: THEME.inkSoft }}>
+        {title}
+      </div>
+      {sub && (
+        <div className="mt-3 text-xs" style={{ color: accent || THEME.green, fontFamily: "'JetBrains Mono', monospace" }}>
+          {sub}
+        </div>
+      )}
+      {onClick && (
+        <div className="mt-2 text-xs font-medium" style={{ color: accent || THEME.green }}>
+          View →
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Sheet — bottom modal (mobile) / centered modal (desktop), dismissable
+// ---------------------------------------------------------------------------
+function Sheet({ title, children, onClose }) {
+  return (
+    <div
+      className="fixed inset-0 z-40 flex items-end sm:items-center sm:justify-center"
+      style={{ background: "rgba(32,40,31,0.5)" }}
+      onClick={onClose}
+    >
+      <div
+        className="bg-white w-full sm:max-w-md sm:rounded-3xl rounded-t-3xl p-5"
+        style={{ maxHeight: "88vh", overflowY: "auto" }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg" style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 600, color: THEME.ink }}>{title}</h3>
+          <button
+            onClick={onClose}
+            className="w-8 h-8 rounded-full flex items-center justify-center"
+            style={{ background: THEME.chalk }}
+            aria-label="Close"
+          >
+            <Icon glyph="x" size={14} style={{ color: THEME.ink }} />
+          </button>
+        </div>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+// Small pill-style quick-action button (icon badge + title + subtitle),
+// echoing the reference plant-store app's tappable info pills.
+function QuickAction({ icon, iconBg, iconColor, title, subtitle, onClick }) {
+  return (
+    <button
+      onClick={onClick}
+      className="rounded-3xl p-4 flex items-center gap-3 text-left transition-shadow"
+      style={{ background: THEME.paper, border: `1px solid ${THEME.line}` }}
+    >
+      <div
+        className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
+        style={{ background: iconBg }}
+      >
+        <Icon glyph={icon} size={18} style={{ color: iconColor }} />
+      </div>
+      <div>
+        <div className="text-sm font-semibold" style={{ color: THEME.ink }}>{title}</div>
+        <div className="text-xs" style={{ color: THEME.inkSoft }}>{subtitle}</div>
+      </div>
+    </button>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Main App
+// ---------------------------------------------------------------------------
+function App() {
+  const [tab, setTab] = useState("dashboard");
+
+  const { students, ready: studentsReady, error: studentsError, importRows } = useSupabaseStudents();
+  const [timetable, setTimetable, timetableReady] = usePersistentState("timetable", DEFAULT_TIMETABLE);
+  const [exams, setExams, examsReady] = usePersistentState("exams", []);
+  const { attendance, ready: attendanceReady, error: attendanceError, mark: markAttendance, markBulk: markAttendanceBulk } = useSupabaseAttendance();
+  const dbError = studentsError || attendanceError;
+
+  const NAV_ITEMS = [
+    { id: "dashboard", label: "Home", icon: "dashboard" },
+    { id: "students", label: "Students", icon: "users" },
+    { id: "attendance", label: "Attendance", icon: "clipboard" },
+    { id: "timetable", label: "Timetable", icon: "calendar" },
+  ];
+
+  return (
+    <div
+      className="min-h-screen w-full"
+      style={{ background: "#FFFFFF", fontFamily: "Inter, sans-serif", color: THEME.ink }}
+    >
+      <style>{FONTS_IMPORT}</style>
+      <style>{PRINT_STYLES}</style>
+
+      {dbError && (
+        <div
+          className="text-xs px-4 py-2 text-center"
+          style={{ background: THEME.coral, color: "#fff" }}
+        >
+          Couldn't reach the database ({dbError}). Check your connection and refresh.
+        </div>
+      )}
+
+      {/* Header — solid brand blue for clear contrast against the page */}
+      <header style={{ background: THEME.chrome }} className="sticky top-0 z-10">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 py-4 flex items-center gap-2.5">
+          <SchoolLogo size={40} />
+          <div>
+            <div
+              className="text-lg sm:text-xl leading-tight"
+              style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 600, letterSpacing: "0.01em", color: "#FFFFFF" }}
+            >
+              Reena's Student's Tracking
+            </div>
+            <div className="text-xs" style={{ color: THEME.chromeText, opacity: 0.85 }}>
+              XI &amp; XII · Tamil Nadu Govt. Higher Secondary School
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <main className="max-w-5xl mx-auto px-4 sm:px-6 py-6" style={{ paddingBottom: "5.5rem" }}>
+        {tab === "dashboard" && (
+          <DashboardTab
+            students={students}
+            timetable={timetable}
+            exams={exams}
+            setExams={setExams}
+            setTimetable={setTimetable}
+            attendance={attendance}
+            ready={studentsReady && timetableReady && examsReady && attendanceReady}
+            setTab={setTab}
+          />
+        )}
+        {tab === "students" && (
+          <StudentsTab students={students} importRows={importRows} ready={studentsReady} />
+        )}
+        {tab === "attendance" && (
+          <AttendanceTab
+            students={students}
+            attendance={attendance}
+            onMark={markAttendance}
+            onMarkBulk={markAttendanceBulk}
+            ready={studentsReady && attendanceReady}
+          />
+        )}
+        {tab === "timetable" && (
+          <TimetableTab timetable={timetable} setTimetable={setTimetable} ready={timetableReady} />
+        )}
+      </main>
+
+      {/* Bottom nav — fixed, solid brand green to match the header */}
+      <nav
+        className="fixed bottom-0 left-0 right-0 z-10"
+        style={{ background: THEME.chrome, boxShadow: "0 -2px 10px rgba(0,0,0,0.15)" }}
+      >
+        <div className="max-w-5xl mx-auto grid grid-cols-4">
+          {NAV_ITEMS.map(({ id, label, icon }) => {
+            const active = tab === id;
+            return (
+              <button
+                key={id}
+                onClick={() => setTab(id)}
+                className="flex flex-col items-center gap-0.5 py-2.5 text-xs"
+                style={{ color: active ? THEME.marigoldSoft : THEME.chromeText, opacity: active ? 1 : 0.75 }}
+              >
+                <Icon glyph={icon} size={18} />
+                <span style={{ fontWeight: active ? 700 : 500 }}>{label}</span>
+              </button>
+            );
+          })}
+        </div>
+      </nav>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Dashboard
+// ---------------------------------------------------------------------------
+function DashboardTab({ students, timetable, exams, setExams, attendance, ready, setTab }) {
+  const [showExamForm, setShowExamForm] = useState(false);
+  const [examName, setExamName] = useState("");
+  const [examClass, setExamClass] = useState("11th");
+  const [examDate, setExamDate] = useState("");
+  const examSectionRef = useRef(null);
+  const [showDictionary, setShowDictionary] = useState(false);
+  const [showTranslator, setShowTranslator] = useState(false);
+  const [showTamilCal, setShowTamilCal] = useState(false);
+
+  const totalStudents = students.length;
+
+  const classesToday =
+    TODAY_INDEX === -1
+      ? 0
+      : PERIODS.filter((p) => (timetable[`${TODAY_INDEX}-${p}`] || "").trim() !== "").length;
+
+  const todayLabel = TODAY_INDEX === -1 ? "Sunday" : DAYS[TODAY_INDEX];
+
+  const upcoming = useMemo(() => {
+    const todayStr = new Date().toISOString().slice(0, 10);
+    return [...exams]
+      .filter((e) => e.date >= todayStr)
+      .sort((a, b) => a.date.localeCompare(b.date));
+  }, [exams]);
+
+  const addExam = () => {
+    if (!examName.trim() || !examDate) return;
+    const next = [
+      ...exams,
+      { id: Date.now().toString(), name: examName.trim(), className: examClass, date: examDate },
+    ];
+    setExams(next);
+    setExamName("");
+    setExamDate("");
+    setShowExamForm(false);
+  };
+
+  const removeExam = (id) => setExams(exams.filter((e) => e.id !== id));
+
+  const goToExams = () => {
+    setShowExamForm(true);
+    examSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+
+  return (
+    <div>
+      {/* Quick actions */}
+      <div className="grid grid-cols-2 gap-3 mb-4">
+        <QuickAction
+          icon="book"
+          iconBg={THEME.greenSoft}
+          iconColor={THEME.greenDark}
+          title="Dictionary"
+          subtitle="English & Botany terms"
+          onClick={() => setShowDictionary(true)}
+        />
+        <QuickAction
+          icon="translate"
+          iconBg={"#FFE1DD"}
+          iconColor={THEME.coral}
+          title="Translator"
+          subtitle="English · Tamil · Hindi"
+          onClick={() => setShowTranslator(true)}
+        />
+        <QuickAction
+          icon="tamilCal"
+          iconBg={THEME.boardGreenSoft}
+          iconColor={THEME.boardGreen}
+          title="Tamil Calendar"
+          subtitle="Today's Tamil date"
+          onClick={() => setShowTamilCal(true)}
+        />
+      </div>
+
+      <div className="flex flex-col sm:flex-row gap-4">
+        <SpecimenCard
+          eyebrow="Roster"
+          title="Students on record"
+          value={ready ? totalStudents : "…"}
+          sub={totalStudents === 0 ? "Import an Excel sheet to begin" : "across XI & XII"}
+          accent={THEME.green}
+          onClick={() => setTab("students")}
+        />
+        <SpecimenCard
+          eyebrow={todayLabel}
+          title="Classes today"
+          value={ready ? classesToday : "…"}
+          sub={TODAY_INDEX === -1 ? "No periods on Sunday" : "from your timetable"}
+          accent={THEME.marigold}
+          onClick={() => setTab("timetable")}
+        />
+        <SpecimenCard
+          eyebrow="Ahead"
+          title="Upcoming exams"
+          value={ready ? upcoming.length : "…"}
+          sub={upcoming[0] ? `Next: ${upcoming[0].name} · ${upcoming[0].date}` : "Nothing scheduled"}
+          accent={THEME.coral}
+          onClick={goToExams}
+        />
+      </div>
+
+      <LeafDivider />
+
+      <AttendanceSummaryCard students={students} attendance={attendance} ready={ready} setTab={setTab} />
+
+      <LeafDivider />
+
+      <div ref={examSectionRef} className="rounded-3xl p-4 sm:p-5" style={{ background: THEME.paper, border: `1px solid ${THEME.line}` }}>
+        <div className="flex items-center justify-between">
+          <h2 className="text-sm font-semibold uppercase tracking-wide" style={{ color: THEME.inkSoft, letterSpacing: "0.1em" }}>
+            Exam Register
+          </h2>
+          <button
+            onClick={() => setShowExamForm((s) => !s)}
+            className="flex items-center gap-1 text-sm px-3 py-1.5 rounded-xl text-white"
+            style={{ background: THEME.green }}
+          >
+            {showExamForm ? <Icon glyph="x" size={14} /> : <Icon glyph="plus" size={14} />}
+            {showExamForm ? "Cancel" : "Add exam"}
+          </button>
+        </div>
+
+        {showExamForm && (
+          <div className="mt-4 grid grid-cols-1 sm:grid-cols-4 gap-2">
+            <input
+              value={examName}
+              onChange={(e) => setExamName(e.target.value)}
+              placeholder="Exam name (e.g. Botany Unit Test)"
+              className="sm:col-span-2 px-3 py-2 text-sm rounded-xl outline-none"
+              style={{ border: `1px solid ${THEME.line}`, background: THEME.chalk }}
+            />
+            <select
+              value={examClass}
+              onChange={(e) => setExamClass(e.target.value)}
+              className="px-3 py-2 text-sm rounded-xl outline-none"
+              style={{ border: `1px solid ${THEME.line}`, background: THEME.chalk }}
+            >
+              <option>11th</option>
+              <option>12th</option>
+            </select>
+            <input
+              type="date"
+              value={examDate}
+              onChange={(e) => setExamDate(e.target.value)}
+              className="px-3 py-2 text-sm rounded-xl outline-none"
+              style={{ border: `1px solid ${THEME.line}`, background: THEME.chalk }}
+            />
+            <button
+              onClick={addExam}
+              className="sm:col-span-4 mt-1 text-sm px-3 py-2 rounded-xl text-white"
+              style={{ background: THEME.marigold }}
+            >
+              Save exam
+            </button>
+          </div>
+        )}
+
+        <div className="mt-4 divide-y" style={{ borderColor: THEME.line }}>
+          {exams.length === 0 && (
+            <div className="text-sm py-3" style={{ color: THEME.inkSoft }}>
+              No exams added yet.
+            </div>
+          )}
+          {[...exams]
+            .sort((a, b) => a.date.localeCompare(b.date))
+            .map((e) => (
+              <div key={e.id} className="flex items-center justify-between py-2.5" style={{ borderTopColor: THEME.line, borderTopWidth: 1 }}>
+                <div>
+                  <div className="text-sm font-medium" style={{ color: THEME.ink }}>{e.name}</div>
+                  <div className="text-xs" style={{ color: THEME.inkSoft, fontFamily: "'JetBrains Mono', monospace" }}>
+                    {e.className} · {e.date}
+                  </div>
+                </div>
+                <button onClick={() => removeExam(e.id)} aria-label={`Remove ${e.name}`}>
+                  <Icon glyph="trash" size={15} style={{ color: THEME.coral }} />
+                </button>
+              </div>
+            ))}
+        </div>
+      </div>
+
+      <LeafDivider />
+
+      <div className="rounded-xl p-4 sm:p-5" style={{ background: THEME.paper, border: `1px solid ${THEME.paperDark}` }}>
+        <div className="text-sm font-semibold" style={{ color: THEME.ink }}>Clear All Data</div>
+        <p className="text-xs mt-1" style={{ color: THEME.inkSoft }}>
+          Removes the imported student list, timetable, and exam entries saved on this device. Use this
+          before handing the device to someone else, since the student data includes sensitive details.
+          This can't be undone.
+        </p>
+        <button
+          onClick={() => {
+            if (window.confirm("Clear all saved data (students, timetable, exams) from this device? This can't be undone.")) {
+              try {
+                window.localStorage.removeItem("students");
+                window.localStorage.removeItem("timetable");
+                window.localStorage.removeItem("exams");
+              } catch (e) {
+                console.error("Clear data failed:", e);
+              }
+              window.location.reload();
+            }
+          }}
+          className="mt-3 text-sm px-4 py-2 rounded-xl text-white"
+          style={{ background: THEME.coral }}
+        >
+          Clear All Data
+        </button>
+      </div>
+
+      {showDictionary && <DictionarySheet onClose={() => setShowDictionary(false)} />}
+      {showTranslator && <TranslatorSheet onClose={() => setShowTranslator(false)} />}
+      {showTamilCal && <TamilCalendarSheet onClose={() => setShowTamilCal(false)} />}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Today's Attendance card — pick a class + section, see present/absent counts
+// and the absentee list for today, with a one-tap "copy for WhatsApp" summary.
+// ---------------------------------------------------------------------------
+function AttendanceSummaryCard({ students, attendance, ready, setTab }) {
+  const [className, setClassName] = useState("");
+  const [section, setSection] = useState("");
+  const [copied, setCopied] = useState(false);
+
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const [selectedDate, setSelectedDate] = useState(todayStr);
+  const isToday = selectedDate === todayStr;
+  const dayAttendance = attendance[selectedDate] || {};
+  const selectedDateLabel = new Date(selectedDate + "T00:00:00").toLocaleDateString(undefined, {
+    weekday: "short",
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  });
+
+  const classes = useMemo(
+    () => [...new Set(students.map((s) => s._class).filter(Boolean))].sort(),
+    [students]
+  );
+  const sections = useMemo(
+    () =>
+      [...new Set(
+        students.filter((s) => !className || s._class === className).map((s) => s._section).filter(Boolean)
+      )].sort(),
+    [students, className]
+  );
+
+  // Default to the first available class/section once the roster loads.
+  useEffect(() => {
+    if (!ready) return;
+    if (!className && classes.length) setClassName(classes[0]);
+  }, [ready, classes, className]);
+  useEffect(() => {
+    if (!ready) return;
+    if (className && !section && sections.length) setSection(sections[0]);
+  }, [ready, className, sections, section]);
+
+  const scoped = useMemo(
+    () =>
+      students.filter(
+        (s) => (!className || s._class === className) && (!section || s._section === section)
+      ),
+    [students, className, section]
+  );
+
+  const presentList = scoped.filter((s) => dayAttendance[s._id] === "present");
+  const absentList = scoped.filter((s) => dayAttendance[s._id] === "absent");
+  const classLabel = className ? `${className}${section ? ` '${section}'` : ""}` : "—";
+
+  // Students in this class/section absent on more than 2 days in the
+  // selected date's calendar month — flagged so it's easy to spot patterns.
+  const monthPrefix = selectedDate.slice(0, 7); // "YYYY-MM"
+  const monthLabel = new Date(selectedDate + "T00:00:00").toLocaleDateString(undefined, {
+    month: "long",
+    year: "numeric",
+  });
+  const monthlyAbsenceCounts = useMemo(() => {
+    const counts = {};
+    Object.keys(attendance).forEach((date) => {
+      if (!date.startsWith(monthPrefix)) return;
+      const day = attendance[date];
+      scoped.forEach((s) => {
+        if (day[s._id] === "absent") counts[s._id] = (counts[s._id] || 0) + 1;
+      });
+    });
+    return counts;
+  }, [attendance, scoped, monthPrefix]);
+  const frequentAbsentees = scoped
+    .filter((s) => (monthlyAbsenceCounts[s._id] || 0) > 2)
+    .sort((a, b) => (monthlyAbsenceCounts[b._id] || 0) - (monthlyAbsenceCounts[a._id] || 0));
+
+  const buildShareText = () => {
+    const lines = [
+      `📋 ${isToday ? "Today's" : selectedDateLabel} Attendance – ${classLabel}`,
+      `📅 ${selectedDateLabel}`,
+      "",
+      `Present: ${presentList.length}`,
+      `Absent: ${absentList.length}`,
+    ];
+    if (absentList.length) {
+      lines.push("", "Absentees:");
+      absentList.forEach((s, i) => lines.push(`${i + 1}. ${s._name}`));
+    }
+    if (frequentAbsentees.length) {
+      lines.push("", `⚠️ Leave taken > 2 days in ${monthLabel}:`);
+      frequentAbsentees.forEach((s, i) => lines.push(`${i + 1}. ${s._name} (${monthlyAbsenceCounts[s._id]} days)`));
+    }
+    return lines.join("\n");
+  };
+
+  const copySummary = async () => {
+    const text = buildShareText();
+    try {
+      await navigator.clipboard.writeText(text);
+    } catch (e) {
+      // Fallback for browsers/contexts without clipboard API access.
+      const ta = document.createElement("textarea");
+      ta.value = text;
+      ta.style.position = "fixed";
+      ta.style.opacity = "0";
+      document.body.appendChild(ta);
+      ta.focus();
+      ta.select();
+      try { document.execCommand("copy"); } catch (err) {}
+      document.body.removeChild(ta);
+    }
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  return (
+    <div className="mb-4">
+      <div className="mb-1 flex items-center justify-between">
+        <h2 className="text-sm font-semibold uppercase tracking-wide" style={{ color: THEME.inkSoft, letterSpacing: "0.1em" }}>
+          {isToday ? "Today's Attendance" : "Attendance"}
+        </h2>
+        <button onClick={() => setTab("attendance")} className="text-xs font-semibold" style={{ color: THEME.green }}>
+          Mark attendance →
+        </button>
+      </div>
+
+      <div className="rounded-3xl p-4 sm:p-5" style={{ background: THEME.paper, border: `1px solid ${THEME.line}` }}>
+        {!ready ? (
+          <div className="text-sm text-center py-4" style={{ color: THEME.inkSoft }}>Loading…</div>
+        ) : classes.length === 0 ? (
+          <div className="text-sm text-center py-4" style={{ color: THEME.inkSoft }}>
+            Import a student list from the Students tab to see attendance here.
+          </div>
+        ) : (
+          <React.Fragment>
+            <div className="flex items-center justify-between gap-2 mb-2">
+              <div className="relative flex-1">
+                <Icon glyph="calendar" size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                <input
+                  type="date"
+                  value={selectedDate}
+                  max={todayStr}
+                  onChange={(e) => e.target.value && setSelectedDate(e.target.value)}
+                  className="w-full pl-7 pr-2 py-1.5 text-xs font-semibold rounded-xl outline-none"
+                  style={{ border: `1px solid ${THEME.paperDark}`, background: THEME.chalk, color: THEME.ink }}
+                />
+              </div>
+              {!isToday && (
+                <button
+                  onClick={() => setSelectedDate(todayStr)}
+                  className="text-xs font-semibold px-2.5 py-1.5 rounded-xl flex-shrink-0"
+                  style={{ background: THEME.boardGreenSoft, color: THEME.boardGreen }}
+                >
+                  Today
+                </button>
+              )}
+            </div>
+
+            <div className="grid grid-cols-2 gap-2">
+              <select
+                value={className}
+                onChange={(e) => { setClassName(e.target.value); setSection(""); }}
+                className="px-3 py-2 text-sm rounded-xl outline-none"
+                style={{ border: `1px solid ${THEME.paperDark}`, background: THEME.chalk }}
+              >
+                {classes.map((c) => <option key={c} value={c}>{c}</option>)}
+              </select>
+              <select
+                value={section}
+                onChange={(e) => setSection(e.target.value)}
+                className="px-3 py-2 text-sm rounded-xl outline-none"
+                style={{ border: `1px solid ${THEME.paperDark}`, background: THEME.chalk }}
+              >
+                <option value="">All sections</option>
+                {sections.map((s) => <option key={s} value={s}>{s}</option>)}
+              </select>
+            </div>
+
+            <div className="mt-3 flex items-center justify-between gap-2">
+              <div className="text-base font-semibold" style={{ color: THEME.ink, fontFamily: "'Poppins', sans-serif" }}>
+                {classLabel}
+              </div>
+              {!isToday && (
+                <div className="text-xs font-semibold px-2 py-1 rounded-xl" style={{ background: THEME.marigoldSoft, color: "#8A6300" }}>
+                  {selectedDateLabel}
+                </div>
+              )}
+            </div>
+
+            <div className="mt-3 flex gap-3">
+              <div
+                className="flex-1 rounded-xl px-3 py-2.5 text-center"
+                style={{ background: THEME.greenSoft, border: `1px solid ${THEME.line}` }}
+              >
+                <div className="text-xs uppercase tracking-wide font-semibold" style={{ color: THEME.greenDark, letterSpacing: "0.08em" }}>
+                  Present
+                </div>
+                <div className="text-xl font-bold" style={{ color: THEME.greenDark, fontFamily: "'Poppins', sans-serif" }}>
+                  {presentList.length}
+                </div>
+              </div>
+              <div
+                className="flex-1 rounded-xl px-3 py-2.5 text-center"
+                style={{ background: "#F7E4DC", border: `1px solid ${THEME.line}` }}
+              >
+                <div className="text-xs uppercase tracking-wide font-semibold" style={{ color: THEME.coral, letterSpacing: "0.08em" }}>
+                  Absent
+                </div>
+                <div className="text-xl font-bold" style={{ color: THEME.coral, fontFamily: "'Poppins', sans-serif" }}>
+                  {absentList.length}
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-3">
+              <div className="text-xs font-semibold uppercase tracking-wide mb-1.5" style={{ color: THEME.inkSoft, letterSpacing: "0.08em" }}>
+                Absentee{absentList.length === 1 ? "" : "s"}
+              </div>
+              {absentList.length === 0 ? (
+                <div className="text-sm px-1 py-1" style={{ color: THEME.inkSoft }}>
+                  {scoped.length === 0 ? "No students in this class/section." : "No absentees marked yet."}
+                </div>
+              ) : (
+                <div className="rounded-xl overflow-hidden" style={{ border: `1px solid ${THEME.paperDark}` }}>
+                  {absentList.map((s, i) => (
+                    <div
+                      key={s._id}
+                      className="px-3 py-2 text-sm"
+                      style={{
+                        color: THEME.ink,
+                        background: i % 2 ? THEME.paper : THEME.chalk,
+                        borderTop: i ? `1px solid ${THEME.paperDark}` : "none",
+                      }}
+                    >
+                      {i + 1}. {s._name}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {frequentAbsentees.length > 0 && (
+              <div className="mt-3">
+                <div
+                  className="text-xs font-semibold uppercase tracking-wide mb-1.5"
+                  style={{ color: THEME.coral, letterSpacing: "0.08em" }}
+                >
+                  ⚠️ Leave &gt; 2 days · {monthLabel}
+                </div>
+                <div className="rounded-xl overflow-hidden" style={{ border: `1px solid ${THEME.paperDark}` }}>
+                  {frequentAbsentees.map((s, i) => (
+                    <div
+                      key={s._id}
+                      className="px-3 py-2 text-sm flex items-center justify-between"
+                      style={{
+                        color: THEME.ink,
+                        background: i % 2 ? THEME.paper : THEME.marigoldSoft,
+                        borderTop: i ? `1px solid ${THEME.paperDark}` : "none",
+                      }}
+                    >
+                      <span>{i + 1}. {s._name}</span>
+                      <span className="text-xs font-semibold" style={{ color: THEME.coral }}>
+                        {monthlyAbsenceCounts[s._id]} days
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <button
+              onClick={copySummary}
+              className="mt-3 w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-full text-sm font-semibold"
+              style={{
+                background: copied ? THEME.green : THEME.gradient,
+                color: THEME.chromeText,
+                transition: "background 0.2s ease",
+              }}
+            >
+              <Icon glyph="clipboard" size={15} />
+              {copied ? "Copied! Paste it in WhatsApp" : "Copy summary for WhatsApp"}
+            </button>
+          </React.Fragment>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Dictionary & Translator — Sheet-based, English/Tamil/Hindi + botany glossary
+// ---------------------------------------------------------------------------
+const LANGUAGES = [
+  { code: "en", label: "English" },
+  { code: "ta", label: "Tamil" },
+  { code: "hi", label: "Hindi" },
+];
+
+// A focused biology/botany glossary — searched locally, no internet needed.
+const BOTANY_DICTIONARY = [
+  { term: "Photosynthesis", definition: "The process by which green plants use sunlight to synthesize food from carbon dioxide and water.", ta: "ஒளிச்சேர்க்கை", hi: "प्रकाश संश्लेषण" },
+  { term: "Chlorophyll", definition: "The green pigment in plants responsible for absorbing light for photosynthesis.", ta: "பசுங்கணிகம்", hi: "क्लोरोफिल" },
+  { term: "Stomata", definition: "Tiny pores on a leaf surface that allow gas exchange and water vapor release.", ta: "இலைத்துளை", hi: "रंध्र" },
+  { term: "Xylem", definition: "Plant tissue that conducts water and dissolved minerals from roots to the rest of the plant.", ta: "நீர்க்குழாய் திசு", hi: "जाइलम" },
+  { term: "Phloem", definition: "Plant tissue that transports food (sugars) made in the leaves to other parts of the plant.", ta: "உணவுக்குழாய் திசு", hi: "फ्लोएम" },
+  { term: "Transpiration", definition: "Loss of water vapor from plant leaves, mainly through stomata.", ta: "வேர்வையிடல்", hi: "वाष्पोत्सर्जन" },
+  { term: "Pollination", definition: "Transfer of pollen from the anther to the stigma of a flower.", ta: "மகரந்தச் சேர்க்கை", hi: "परागण" },
+  { term: "Fertilization", definition: "Fusion of male and female gametes to form a zygote.", ta: "கருவுறுதல்", hi: "निषेचन" },
+  { term: "Respiration", definition: "The process of breaking down glucose to release energy, using or not using oxygen.", ta: "சுவாசம்", hi: "श्वसन" },
+  { term: "Mitosis", definition: "Cell division that produces two genetically identical daughter cells.", ta: "சமபிரிவு", hi: "समसूत्री विभाजन" },
+  { term: "Meiosis", definition: "Cell division that produces four genetically different gametes with half the chromosome number.", ta: "குறுக்கல் பிரிவு", hi: "अर्धसूत्री विभाजन" },
+  { term: "Osmosis", definition: "Movement of water across a semi-permeable membrane from a less to a more concentrated solution.", ta: "சவ்வூடு பரவல்", hi: "परासरण" },
+  { term: "Chromosome", definition: "A thread-like structure of DNA that carries genetic information.", ta: "நிறமூர்த்தம்", hi: "गुणसूत्र" },
+  { term: "Genotype", definition: "The genetic makeup of an organism.", ta: "மரபணு அமைப்பு", hi: "जीनोटाइप" },
+  { term: "Phenotype", definition: "The observable physical or biochemical characteristics of an organism.", ta: "தோற்ற இயல்பு", hi: "फीनोटाइप" },
+  { term: "Ecosystem", definition: "A community of living organisms interacting with their physical environment.", ta: "சூழ்நிலைத் தொகுதி", hi: "पारिस्थितिकी तंत्र" },
+  { term: "Taxonomy", definition: "The science of classifying living organisms.", ta: "வகைப்பாட்டியல்", hi: "वर्गिकी" },
+  { term: "Monocot", definition: "A flowering plant with a single seed leaf (cotyledon), e.g. grasses.", ta: "ஒற்றை இலை விதைத் தாவரம்", hi: "एकबीजपत्री" },
+  { term: "Dicot", definition: "A flowering plant with two seed leaves (cotyledons), e.g. beans.", ta: "இரட்டை இலை விதைத் தாவரம்", hi: "द्विबीजपत्री" },
+  { term: "Inflorescence", definition: "The arrangement of flowers on a plant stem.", ta: "மலர் அமைப்பு", hi: "पुष्पक्रम" },
+  { term: "Stamen", definition: "The male reproductive part of a flower, consisting of anther and filament.", ta: "மகரந்தத்தாள்", hi: "पुंकेसर" },
+  { term: "Pistil", definition: "The female reproductive part of a flower, consisting of stigma, style, and ovary.", ta: "சூல் தண்டு", hi: "स्त्रीकेसर" },
+  { term: "Sepal", definition: "The outer, usually green, leaf-like part of a flower that protects the bud.", ta: "புல்லி இதழ்", hi: "बाह्यदल" },
+  { term: "Petal", definition: "One of the often brightly colored parts of a flower's corolla.", ta: "இதழ்", hi: "पंखुड़ी" },
+  { term: "Germination", definition: "The process by which a seed develops into a new plant.", ta: "முளைத்தல்", hi: "अंकुरण" },
+  { term: "Herbarium", definition: "A collection of preserved plant specimens used for study.", ta: "தாவரக் காட்சியகம்", hi: "हर्बेरियम" },
+  { term: "Auxin", definition: "A plant hormone that regulates growth, especially cell elongation.", ta: "தாவர வளர்ச்சி ஹார்மோன் (ஆக்சின்)", hi: "ऑक्सिन" },
+  { term: "Nucleus", definition: "The membrane-bound organelle that contains a cell's genetic material.", ta: "உட்கரு", hi: "केंद्रक" },
+  { term: "Mitochondria", definition: "The organelle responsible for producing energy (ATP) in a cell.", ta: "மைட்டோகாண்ட்ரியா", hi: "माइटोकॉन्ड्रिया" },
+  { term: "Vacuole", definition: "A membrane-bound sac in a cell used for storage, often large in plant cells.", ta: "வெற்றிடம்", hi: "रिक्तिका" },
+  { term: "Cell wall", definition: "The rigid outer layer of plant cells, made mainly of cellulose, that supports and protects the cell.", ta: "செல் சுவர்", hi: "कोशिका भित्ति" },
+  { term: "Cell membrane", definition: "The thin, semi-permeable layer surrounding a cell that controls what enters and leaves.", ta: "செல் சவ்வு", hi: "कोशिका झिल्ली" },
+  { term: "Chloroplast", definition: "The organelle in plant cells where photosynthesis takes place.", ta: "பசுங்கணு", hi: "हरितलवक" },
+  { term: "Ribosome", definition: "The cell organelle where proteins are synthesized.", ta: "ரைபோசோம்", hi: "राइबोसोम" },
+  { term: "Endoplasmic reticulum", definition: "A network of membranes in a cell involved in protein and lipid synthesis and transport.", ta: "எண்டோபிளாஸ்மிக் ரெட்டிகுலம்", hi: "अंतर्द्रव्यी जालिका" },
+  { term: "Golgi apparatus", definition: "The organelle that packages and dispatches proteins produced by the cell.", ta: "கோல்கை உறுப்பு", hi: "गॉल्जी उपकरण" },
+  { term: "Gene", definition: "A unit of heredity made of DNA that carries information for a specific trait.", ta: "மரபணு", hi: "जीन" },
+  { term: "Allele", definition: "One of two or more alternative forms of a gene.", ta: "மாற்று மரபணு", hi: "एलील" },
+  { term: "Dominant", definition: "An allele whose trait is expressed even when only one copy is present.", ta: "மேலாதிக்க", hi: "प्रभावी" },
+  { term: "Recessive", definition: "An allele whose trait is expressed only when two copies are present.", ta: "பின்னடைவு", hi: "अप्रभावी" },
+  { term: "Natural selection", definition: "The process by which organisms better adapted to their environment survive and reproduce more successfully.", ta: "இயற்கைத் தேர்வு", hi: "प्राकृतिक चयन" },
+  { term: "Species", definition: "A group of organisms capable of interbreeding and producing fertile offspring.", ta: "இனம்", hi: "जाति" },
+  { term: "Habitat", definition: "The natural environment in which an organism lives.", ta: "வாழிடம்", hi: "आवास" },
+  { term: "Biodiversity", definition: "The variety of living species found in an ecosystem or on Earth.", ta: "உயிரின பன்முகத்தன்மை", hi: "जैव विविधता" },
+  { term: "Symbiosis", definition: "A close, long-term biological interaction between two different species.", ta: "சகவாழ்வு", hi: "सहजीविता" },
+  { term: "Food chain", definition: "A sequence showing who eats whom in a biological community, transferring energy.", ta: "உணவுச் சங்கிலி", hi: "खाद्य श्रृंखला" },
+  { term: "Meristem", definition: "Plant tissue made of actively dividing cells, found at growing tips of roots and shoots.", ta: "மூலத்திசு", hi: "विभज्योतक" },
+  { term: "Epidermis", definition: "The outermost protective layer of cells covering a plant or leaf.", ta: "மேல்தோல்", hi: "अधिचर्म" },
+  { term: "Guard cell", definition: "A pair of specialized cells that open and close the stomata.", ta: "காவல் செல்", hi: "रक्षक कोशिका" },
+  { term: "Tropism", definition: "The directional growth of a plant in response to an external stimulus.", ta: "திசைவழி வளர்ச்சி", hi: "अनुवर्तन" },
+  { term: "Phototropism", definition: "Growth of a plant toward or away from light.", ta: "ஒளி திசைவழி வளர்ச்சி", hi: "प्रकाशानुवर्तन" },
+  { term: "Endosperm", definition: "The nutritive tissue in a seed that nourishes the developing embryo.", ta: "வித்திறை", hi: "भ्रूणपोष" },
+  { term: "Cotyledon", definition: "The seed leaf within a plant embryo, storing or absorbing food for germination.", ta: "வித்திலை", hi: "बीजपत्र" },
+  { term: "Zygote", definition: "The single cell formed by the fusion of a male and female gamete.", ta: "இணைச்செல்", hi: "युग्मनज" },
+  { term: "Vegetative propagation", definition: "Asexual reproduction of plants from stems, roots, or leaves rather than seeds.", ta: "தாவர இனப்பெருக்கம்", hi: "कायिक प्रवर्धन" },
+  { term: "Parenchyma", definition: "A simple plant tissue made of thin-walled living cells involved in storage and photosynthesis.", ta: "பாரன்கிமா திசு", hi: "मृदूतक" },
+  { term: "Sclerenchyma", definition: "Plant tissue with thick, hardened cell walls that provides mechanical support.", ta: "ஸ்களெரன்கிமா திசு", hi: "दृढ़ोतक" },
+  { term: "Tracheid", definition: "An elongated xylem cell that conducts water and provides support in plants.", ta: "டிரக்கீட் செல்", hi: "वाहिनिका" },
+  { term: "DNA", definition: "Deoxyribonucleic acid — the molecule that carries genetic instructions in living organisms.", ta: "டிஎன்ஏ", hi: "डीएनए" },
+  { term: "RNA", definition: "Ribonucleic acid — a molecule involved in coding, decoding, and expressing genes.", ta: "ஆர்என்ஏ", hi: "आरएनए" },
+  { term: "Enzyme", definition: "A protein that speeds up (catalyzes) chemical reactions in living organisms.", ta: "நொதி", hi: "एंजाइम" },
+  { term: "Hormone", definition: "A chemical messenger produced by an organism that regulates growth or other functions.", ta: "ஹார்மோன்", hi: "हार्मोन" },
+  { term: "Tissue", definition: "A group of similar cells that work together to perform a specific function.", ta: "திசு", hi: "ऊतक" },
+  { term: "Seed dormancy", definition: "A period during which a viable seed does not germinate even under favorable conditions.", ta: "விதை உறக்கநிலை", hi: "बीज सुप्तावस्था" },
+  { term: "Grafting", definition: "A technique of joining tissues of two plants so they grow as one.", ta: "ஒட்டுக்கட்டுதல்", hi: "कलम बांधना" },
+];
+
+// ---------------------------------------------------------------------------
+// Translator — English / Tamil / Hindi, slide-up sheet
+// ---------------------------------------------------------------------------
+function TranslatorSheet({ onClose }) {
+  const [from, setFrom] = useState("en");
+  const [to, setTo] = useState("ta");
+  const [text, setText] = useState("");
+  const [result, setResult] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  const swapLangs = () => {
+    setFrom(to);
+    setTo(from);
+    setText(result);
+    setResult("");
+  };
+
+  const translate = async () => {
+    const q = text.trim();
+    if (!q || from === to) return;
+    setLoading(true);
+    setError("");
+    setResult("");
+    try {
+      const res = await fetch(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(q)}&langpair=${from}|${to}`);
+      if (!res.ok) throw new Error(`Request failed (${res.status})`);
+      const data = await res.json();
+      const translated = data?.responseData?.translatedText;
+      if (!translated) throw new Error("No translation returned");
+      setResult(translated);
+    } catch (e) {
+      console.error("Translation failed:", e);
+      setError("Couldn't translate that — check your internet connection and try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <Sheet onClose={onClose} title="Translator">
+      <div className="flex items-center gap-2 mb-4">
+        <div className="flex-1 grid grid-cols-1 gap-1.5">
+          {LANGUAGES.map((l) => (
+            <button
+              key={l.code}
+              onClick={() => setFrom(l.code)}
+              className="text-xs font-bold px-3 py-2 rounded-2xl border-2 text-left"
+              style={
+                from === l.code
+                  ? { background: THEME.greenSoft, color: THEME.greenDark, borderColor: THEME.green }
+                  : { background: "#fff", color: THEME.ink, borderColor: THEME.line }
+              }
+            >
+              {l.label}
+            </button>
+          ))}
+        </div>
+        <button
+          onClick={swapLangs}
+          className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0"
+          style={{ background: THEME.chalk, border: `1px solid ${THEME.line}` }}
+          aria-label="Swap languages"
+        >
+          <Icon glyph="swap" size={16} style={{ color: THEME.greenDark }} />
+        </button>
+        <div className="flex-1 grid grid-cols-1 gap-1.5">
+          {LANGUAGES.map((l) => (
+            <button
+              key={l.code}
+              onClick={() => setTo(l.code)}
+              className="text-xs font-bold px-3 py-2 rounded-2xl border-2 text-left"
+              style={
+                to === l.code
+                  ? { background: THEME.marigoldSoft, color: "#8A6300", borderColor: THEME.marigold }
+                  : { background: "#fff", color: THEME.ink, borderColor: THEME.line }
+              }
+            >
+              {l.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <textarea
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        rows={3}
+        placeholder="Type text to translate…"
+        className="w-full rounded-xl p-3 text-sm mb-3 outline-none"
+        style={{ border: `2px solid ${THEME.line}` }}
+      />
+
+      <button
+        onClick={translate}
+        disabled={!text.trim() || loading || from === to}
+        className="w-full py-3 rounded-full text-white font-semibold disabled:opacity-40 mb-2"
+        style={{ background: THEME.gradient, fontFamily: "'Poppins', sans-serif" }}
+      >
+        {loading ? "Translating…" : "Translate"}
+      </button>
+      {from === to && <p className="text-xs mb-3" style={{ color: THEME.coral }}>Pick two different languages.</p>}
+      {error && <p className="text-sm text-center py-2" style={{ color: THEME.coral }}>{error}</p>}
+      {result && (
+        <div className="rounded-xl p-3" style={{ background: THEME.greenSoft }}>
+          <p className="text-sm" style={{ color: THEME.ink }}>{result}</p>
+        </div>
+      )}
+      <p className="text-xs mt-3" style={{ color: THEME.inkSoft }}>
+        Machine translation can be imperfect, especially for longer sentences.
+      </p>
+    </Sheet>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Tamil Calendar — today's Tamil solar month/day + weekday, computed locally
+// (no internet needed). The Tamil calendar is solar, so month-start dates are
+// stable year to year (±1 day). Thithi/nakshatram require lunar ephemeris
+// data we don't have, so we link out to Nithra's Tamil Calendar for the full
+// panchangam instead of guessing at astrological details.
+// ---------------------------------------------------------------------------
+const TAMIL_MONTHS = [
+  { name: "Chithirai", startMonth: 4, startDay: 14 },
+  { name: "Vaikasi", startMonth: 5, startDay: 15 },
+  { name: "Aani", startMonth: 6, startDay: 15 },
+  { name: "Aadi", startMonth: 7, startDay: 17 },
+  { name: "Aavani", startMonth: 8, startDay: 17 },
+  { name: "Purattasi", startMonth: 9, startDay: 17 },
+  { name: "Aippasi", startMonth: 10, startDay: 18 },
+  { name: "Karthigai", startMonth: 11, startDay: 17 },
+  { name: "Margazhi", startMonth: 12, startDay: 16 },
+  { name: "Thai", startMonth: 1, startDay: 14 },
+  { name: "Maasi", startMonth: 2, startDay: 13 },
+  { name: "Panguni", startMonth: 3, startDay: 14 },
+];
+
+const TAMIL_WEEKDAYS = [
+  "Gnayiru (Sunday)",
+  "Thingal (Monday)",
+  "Sevvai (Tuesday)",
+  "Budhan (Wednesday)",
+  "Viyazhan (Thursday)",
+  "Velli (Friday)",
+  "Sani (Saturday)",
+];
+
+function getTamilDate(d) {
+  const y = d.getFullYear();
+  const starts = TAMIL_MONTHS.map((m) => {
+    // Thai..Panguni (indexes 9-11) start in the following calendar year
+    // relative to Chithirai..Margazhi (indexes 0-8) of the same y.
+    const year = m.startMonth <= 3 ? y : y;
+    return { ...m, date: new Date(year, m.startMonth - 1, m.startDay) };
+  });
+  // Build a full ordered list spanning from last Chithirai to next Chithirai
+  // so we can find which window today falls into, regardless of where in
+  // the Gregorian year we are.
+  const candidates = [];
+  for (const offsetYear of [-1, 0, 1]) {
+    for (const m of TAMIL_MONTHS) {
+      const yr = m.startMonth <= 3 ? y + offsetYear + 1 : y + offsetYear;
+      candidates.push({ name: m.name, date: new Date(yr, m.startMonth - 1, m.startDay) });
+    }
+  }
+  candidates.sort((a, b) => a.date - b.date);
+  let current = candidates[0];
+  for (const c of candidates) {
+    if (c.date <= d) current = c;
+    else break;
+  }
+  const dayNum = Math.floor((d - current.date) / (1000 * 60 * 60 * 24)) + 1;
+  return { month: current.name, day: dayNum };
+}
+
+// ---------------------------------------------------------------------------
+// Panchangam math — Sun/Moon ecliptic longitude via standard low-precision
+// formulas (Meeus, "Astronomical Algorithms"), Lahiri ayanamsa, and a
+// standard NOAA-style sunrise/sunset calculation. Coordinates default to
+// Chennai / Tamil Nadu. All computed locally, no internet needed.
+// ---------------------------------------------------------------------------
+const DEG = Math.PI / 180;
+const normDeg = (x) => ((x % 360) + 360) % 360;
+
+function toJulianDay(date) {
+  const y = date.getUTCFullYear();
+  let m = date.getUTCMonth() + 1;
+  let yy = y;
+  if (m <= 2) { yy -= 1; m += 12; }
+  const A = Math.floor(yy / 100);
+  const B = 2 - A + Math.floor(A / 4);
+  const dayFrac = date.getUTCDate() + (date.getUTCHours() + date.getUTCMinutes() / 60 + date.getUTCSeconds() / 3600) / 24;
+  return Math.floor(365.25 * (yy + 4716)) + Math.floor(30.6001 * (m + 1)) + dayFrac + B - 1524.5;
+}
+
+function sunLongitudeDeg(jd) {
+  const T = (jd - 2451545.0) / 36525;
+  const L0 = 280.46646 + 36000.76983 * T + 0.0003032 * T * T;
+  const M = 357.52911 + 35999.05029 * T - 0.0001537 * T * T;
+  const Mr = M * DEG;
+  const C = (1.914602 - 0.004817 * T - 0.000014 * T * T) * Math.sin(Mr)
+    + (0.019993 - 0.000101 * T) * Math.sin(2 * Mr)
+    + 0.000289 * Math.sin(3 * Mr);
+  return normDeg(L0 + C);
+}
+
+function moonLongitudeDeg(jd) {
+  const T = (jd - 2451545.0) / 36525;
+  const Lp = 218.3164477 + 481267.88123421 * T - 0.0015786 * T * T;
+  const D = (297.8501921 + 445267.1114034 * T - 0.0018819 * T * T) * DEG;
+  const M = (357.5291092 + 35999.0502909 * T - 0.0001536 * T * T) * DEG;
+  const Mp = (134.9633964 + 477198.8675055 * T + 0.0087414 * T * T) * DEG;
+  const F = (93.2720950 + 483202.0175233 * T - 0.0036539 * T * T) * DEG;
+  const dL =
+    6.288774 * Math.sin(Mp) + 1.274027 * Math.sin(2 * D - Mp) + 0.658314 * Math.sin(2 * D)
+    + 0.213618 * Math.sin(2 * Mp) - 0.185116 * Math.sin(M) - 0.114332 * Math.sin(2 * F)
+    + 0.058793 * Math.sin(2 * D - 2 * Mp) + 0.057066 * Math.sin(2 * D - M - Mp)
+    + 0.053322 * Math.sin(2 * D + Mp) + 0.045758 * Math.sin(2 * D - M)
+    - 0.040923 * Math.sin(M - Mp) - 0.034720 * Math.sin(D) - 0.030383 * Math.sin(M + Mp);
+  return normDeg(Lp + dL);
+}
+
+function lahiriAyanamsaDeg(jd) {
+  const yearsSince2000 = (jd - 2451545.0) / 365.25;
+  return 23.85 + 0.013972 * yearsSince2000;
+}
+
+// Standard sunrise/sunset algorithm (Sun eq. from Almanac, NOAA-equivalent).
+function sunriseSunset(date, lat, lon) {
+  const rad = DEG;
+  const start = Date.UTC(date.getFullYear(), date.getMonth(), date.getDate());
+  const dayOfYear = Math.floor((start - Date.UTC(date.getFullYear(), 0, 0)) / 86400000);
+  const lngHour = lon / 15;
+
+  const calc = (isRise) => {
+    const t = dayOfYear + ((isRise ? 6 : 18) - lngHour) / 24;
+    const M = 0.9856 * t - 3.289;
+    let L = M + 1.916 * Math.sin(M * rad) + 0.020 * Math.sin(2 * M * rad) + 282.634;
+    L = normDeg(L);
+    let RA = Math.atan(0.91764 * Math.tan(L * rad)) / rad;
+    RA = normDeg(RA);
+    RA += Math.floor(L / 90) * 90 - Math.floor(RA / 90) * 90;
+    RA /= 15;
+    const sinDec = 0.39782 * Math.sin(L * rad);
+    const cosDec = Math.cos(Math.asin(sinDec));
+    const cosH = (Math.cos(90.833 * rad) - sinDec * Math.sin(lat * rad)) / (cosDec * Math.cos(lat * rad));
+    if (cosH > 1 || cosH < -1) return null;
+    let H = isRise ? 360 - Math.acos(cosH) / rad : Math.acos(cosH) / rad;
+    H /= 15;
+    const T = H + RA - 0.06571 * t - 6.622;
+    return ((T - lngHour) % 24 + 24) % 24; // UTC decimal hours
+  };
+
+  const riseUT = calc(true);
+  const setUT = calc(false);
+  const toDate = (ut) => (ut == null ? null : new Date(start + ut * 3600000));
+  return { sunrise: toDate(riseUT), sunset: toDate(setUT) };
+}
+
+const fmtTime = (d) => (d ? d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" }) : "—");
+
+const THITHI_NAMES = [
+  "Prathamai", "Dvitiyai", "Tritiyai", "Chaturthi", "Panchami", "Sashti", "Sapthami",
+  "Ashtami", "Navami", "Dashami", "Ekadashi", "Dvadashi", "Trayodashi", "Chaturdashi",
+];
+const NAKSHATRA_NAMES_TA = [
+  "Ashwini", "Bharani", "Krithigai", "Rohini", "Mrigasirisham", "Thiruvathirai", "Punarpoosam",
+  "Poosam", "Ayilyam", "Magam", "Pooram", "Uthiram", "Hastham", "Chithirai", "Swathi",
+  "Visakam", "Anusham", "Kettai", "Moolam", "Pooradam", "Uthiradam", "Thiruvonam",
+  "Avittam", "Sathayam", "Poorattathi", "Uthirattathi", "Revathi",
+];
+const RASI_NAMES_TA = [
+  "Mesham", "Rishabam", "Mithunam", "Kadagam", "Simmam", "Kanni",
+  "Thulam", "Vrichigam", "Dhanusu", "Magaram", "Kumbam", "Meenam",
+];
+
+// Default reference location: Chennai / Tamil Nadu.
+const DEFAULT_LAT = 13.0827;
+const DEFAULT_LON = 80.2707;
+
+function computePanchangam(date) {
+  const jd = toJulianDay(date);
+  const sunLon = sunLongitudeDeg(jd);
+  const moonLon = moonLongitudeDeg(jd);
+  const ayanamsa = lahiriAyanamsaDeg(jd);
+
+  const elongation = normDeg(moonLon - sunLon);
+  const thithiIndex = Math.floor(elongation / 12); // 0-29
+  const paksha = thithiIndex < 15 ? "Shukla Paksham (waxing)" : "Krishna Paksham (waning)";
+  const inPaksha = thithiIndex % 15;
+  const thithi = inPaksha === 14
+    ? (thithiIndex < 15 ? "Pournami (Full Moon)" : "Amavasai (New Moon)")
+    : THITHI_NAMES[inPaksha];
+
+  const siderealMoon = normDeg(moonLon - ayanamsa);
+  const nakshatraIndex = Math.floor(siderealMoon / (360 / 27));
+  const rasiIndex = Math.floor(siderealMoon / 30);
+
+  const { sunrise, sunset } = sunriseSunset(date, DEFAULT_LAT, DEFAULT_LON);
+  let rahuKalam = "—", yamagandam = "—", gulikaKalam = "—";
+  if (sunrise && sunset) {
+    const segment = (sunset - sunrise) / 8;
+    const segTime = (n) => {
+      const s = new Date(sunrise.getTime() + (n - 1) * segment);
+      const e = new Date(sunrise.getTime() + n * segment);
+      return `${fmtTime(s)} – ${fmtTime(e)}`;
+    };
+    const dow = date.getDay(); // 0=Sun..6=Sat
+    const RAHU_OCTANT = [8, 2, 7, 5, 6, 4, 3];
+    const YAMA_OCTANT = [5, 4, 3, 2, 1, 7, 6];
+    const GULIKA_OCTANT = [7, 6, 5, 4, 3, 2, 1];
+    rahuKalam = segTime(RAHU_OCTANT[dow]);
+    yamagandam = segTime(YAMA_OCTANT[dow]);
+    gulikaKalam = segTime(GULIKA_OCTANT[dow]);
+  }
+
+  return {
+    thithi,
+    paksha,
+    nakshatra: NAKSHATRA_NAMES_TA[nakshatraIndex] || "—",
+    rasi: RASI_NAMES_TA[rasiIndex] || "—",
+    sunrise: fmtTime(sunrise),
+    sunset: fmtTime(sunset),
+    rahuKalam,
+    yamagandam,
+    gulikaKalam,
+  };
+}
+
+function TamilCalendarSheet({ onClose }) {
+  const today = new Date();
+  const tamilDate = getTamilDate(today);
+  const weekday = TAMIL_WEEKDAYS[today.getDay()];
+  const panchangam = useMemo(() => computePanchangam(today), []); // eslint-disable-line
+
+  return (
+    <Sheet onClose={onClose} title="Tamil Calendar">
+      <div className="rounded-xl p-4 text-center" style={{ background: THEME.greenSoft }}>
+        <div className="text-xs uppercase tracking-widest" style={{ color: THEME.greenDark, letterSpacing: "0.1em" }}>
+          {weekday}
+        </div>
+        <div className="mt-1 text-3xl font-bold" style={{ fontFamily: "'Poppins', sans-serif", color: THEME.ink }}>
+          {tamilDate.day} {tamilDate.month}
+        </div>
+        <div className="mt-1 text-sm" style={{ color: THEME.inkSoft }}>
+          {today.toLocaleDateString(undefined, { weekday: "long", year: "numeric", month: "long", day: "numeric" })}
+        </div>
+      </div>
+
+      <div className="mt-4">
+        <div className="text-xs font-semibold uppercase tracking-wide mb-2" style={{ color: THEME.inkSoft, letterSpacing: "0.1em" }}>
+          Panchangam (computed, approximate)
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          {[
+            ["Thithi", panchangam.thithi],
+            ["Paksham", panchangam.paksha],
+            ["Nakshatram", panchangam.nakshatra],
+            ["Rasi (Moon sign)", panchangam.rasi],
+            ["Sunrise", panchangam.sunrise],
+            ["Sunset", panchangam.sunset],
+            ["Rahu Kalam", panchangam.rahuKalam],
+            ["Yamagandam", panchangam.yamagandam],
+            ["Gulika Kalam", panchangam.gulikaKalam],
+          ].map(([label, value]) => (
+            <div key={label} className="rounded-2xl p-2.5" style={{ background: THEME.chalk, border: `1px solid ${THEME.line}` }}>
+              <div className="uppercase" style={{ color: THEME.inkSoft, letterSpacing: "0.06em", fontSize: "10px" }}>{label}</div>
+              <div className="text-sm font-semibold mt-0.5" style={{ color: THEME.ink }}>{value}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <p className="text-xs mt-4" style={{ color: THEME.inkSoft }}>
+        Calculated locally (works offline) using standard solar/lunar position formulas and the Lahiri
+        ayanamsa, for Chennai / Tamil Nadu coordinates. This is a good day-to-day reference, but it's an
+        approximation — timings near a thithi/nakshatram change, or for muhurtham/religious decisions,
+        should be cross-checked against a printed or authoritative panchangam.
+      </p>
+
+      <a
+        href="https://www.nithra.com/tamil-calendar"
+        target="_blank"
+        rel="noopener noreferrer"
+        className="mt-4 block text-center py-3 rounded-full text-white font-semibold"
+        style={{ background: THEME.gradient, fontFamily: "'Poppins', sans-serif" }}
+      >
+        Cross-check on Nithra ↗
+      </a>
+    </Sheet>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Dictionary — English word lookups, slide-up sheet
+// Biology/botany terms check the local glossary first (works offline, and
+// includes Tamil/Hindi); anything not found there falls back to the live
+// English dictionary API, so results are never thin.
+// ---------------------------------------------------------------------------
+function DictionarySheet({ onClose }) {
+  const [word, setWord] = useState("");
+  const [result, setResult] = useState(null); // { type: "botany" | "general", ... }
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  const fetchGeneral = async (q) => {
+    const res = await fetch(`https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(q)}`);
+    if (res.status === 404) return null;
+    if (!res.ok) throw new Error(`Request failed (${res.status})`);
+    const data = await res.json();
+    const entry = data[0];
+    const meanings = (entry?.meanings || []).slice(0, 3).map((m) => ({
+      partOfSpeech: m.partOfSpeech,
+      definitions: (m.definitions || []).slice(0, 2).map((d) => d.definition),
+    }));
+    return { type: "general", word: entry?.word || q, phonetic: entry?.phonetic, meanings };
+  };
+
+  const lookup = async () => {
+    const q = word.trim();
+    if (!q) return;
+    setLoading(true);
+    setError("");
+    setResult(null);
+    try {
+      const ql = q.toLowerCase();
+      const botanyHit = BOTANY_DICTIONARY.find((d) => d.term.toLowerCase() === ql);
+      const botanyPartial = !botanyHit ? BOTANY_DICTIONARY.filter((d) => d.term.toLowerCase().includes(ql)) : [];
+
+      if (botanyHit) {
+        setResult({ type: "botany", hits: [botanyHit] });
+      } else if (botanyPartial.length > 0) {
+        setResult({ type: "botany", hits: botanyPartial.slice(0, 6) });
+      } else {
+        const general = await fetchGeneral(q);
+        if (general) setResult(general);
+        else setError(`No definition found for "${q}". Check the spelling and try again.`);
+      }
+    } catch (e) {
+      console.error("Dictionary lookup failed:", e);
+      setError("Couldn't look that up — check your internet connection and try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <Sheet onClose={onClose} title="Dictionary">
+      <p className="text-xs mb-3" style={{ color: THEME.inkSoft }}>
+        Checks the biology/botany glossary first (offline, with Tamil &amp; Hindi), then the general English
+        dictionary if needed.
+      </p>
+      <div className="flex gap-2 mb-4">
+        <input
+          value={word}
+          onChange={(e) => setWord(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && lookup()}
+          placeholder="e.g. photosynthesis"
+          className="flex-1 rounded-xl p-3 text-sm outline-none"
+          style={{ border: `2px solid ${THEME.line}` }}
+        />
+        <button
+          onClick={lookup}
+          disabled={!word.trim() || loading}
+          className="w-12 h-12 rounded-xl text-white flex items-center justify-center flex-shrink-0 disabled:opacity-40"
+          style={{ background: THEME.green }}
+        >
+          <Icon glyph="search" size={18} />
+        </button>
+      </div>
+
+      {loading && <p className="text-sm text-center py-6" style={{ color: THEME.inkSoft }}>Looking it up…</p>}
+      {error && <p className="text-sm text-center py-4" style={{ color: THEME.coral }}>{error}</p>}
+
+      {!loading && !error && !result && (
+        <div className="text-center py-6">
+          <Icon glyph="book" size={26} style={{ color: THEME.greenDark }} />
+          <p className="text-sm mt-2" style={{ color: THEME.inkSoft }}>
+            Search any word — biology/botany terms include Tamil &amp; Hindi translations.
+          </p>
+        </div>
+      )}
+
+      {result?.type === "botany" && (
+        <div className="space-y-3" style={{ maxHeight: "55vh", overflowY: "auto" }}>
+          {result.hits.map((h) => (
+            <div key={h.term} className="rounded-xl p-3" style={{ background: THEME.chalk, border: `1px solid ${THEME.line}` }}>
+              <div className="text-base font-semibold" style={{ fontFamily: "'Poppins', sans-serif", color: THEME.ink }}>{h.term}</div>
+              <div className="mt-1 text-sm" style={{ color: THEME.inkSoft }}>{h.definition}</div>
+              <div className="mt-1.5 text-xs flex gap-3" style={{ color: THEME.greenDark, fontFamily: "'JetBrains Mono', monospace" }}>
+                <span>தமிழ்: {h.ta || "—"}</span>
+                <span>हिंदी: {h.hi || "—"}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {result?.type === "general" && (
+        <div style={{ maxHeight: "55vh", overflowY: "auto" }}>
+          <div className="flex items-baseline gap-2 mb-2">
+            <p className="text-lg font-semibold" style={{ fontFamily: "'Poppins', sans-serif", color: THEME.ink }}>{result.word}</p>
+            {result.phonetic && <p className="text-sm" style={{ color: THEME.inkSoft }}>{result.phonetic}</p>}
+          </div>
+          {result.meanings.map((m, mi) => (
+            <div key={mi} className="mb-3">
+              <span className="text-xs font-bold px-2 py-1 rounded-full" style={{ background: THEME.greenSoft, color: THEME.greenDark }}>
+                {m.partOfSpeech}
+              </span>
+              <ul className="mt-2 space-y-1.5">
+                {m.definitions.map((d, di) => (
+                  <li key={di} className="text-sm" style={{ color: THEME.ink }}>
+                    <span style={{ color: THEME.inkSoft }}>{di + 1}.</span> {d}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
+        </div>
+      )}
+    </Sheet>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Students — import + cascading search
+// ---------------------------------------------------------------------------
+const SENSITIVE_HINT_KEYWORDS = ["aadhaar", "phone", "email", "address", "religion", "father", "mother"];
+
+function detectAcademicYear(fileName) {
+  const m = String(fileName || "").match(/(20\d{2})\s*[-_/]\s*(\d{2,4})/);
+  if (!m) return "";
+  let end = m[2];
+  if (end.length === 4) end = end.slice(2);
+  return `${m[1]}-${end}`;
+}
+
+function findHeaderKey(headers, exactList, substrList = [], excludeList = []) {
+  const norm = (h) => h.trim().toLowerCase();
+  for (const h of headers) {
+    if (exactList.includes(norm(h))) return h;
+  }
+  for (const h of headers) {
+    const hh = norm(h);
+    if (excludeList.some((ex) => hh.includes(ex))) continue;
+    if (substrList.some((s) => hh.includes(s))) return h;
+  }
+  return null;
+}
+
+// Parses every column present in the sheet (not a fixed set), tags each row
+// with metadata used for filtering (_year from the filename, _name/_class/_section
+// detected from headers), and preserves original column order for display.
+function parseSheetRows(sheet, fileName) {
+  const raw = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "" });
+  if (!raw.length) return [];
+  const headerRow = raw[0].map((h) => String(h ?? "").trim());
+  const colIdxs = headerRow.map((h, i) => ({ h, i })).filter((c) => c.h);
+  const columns = colIdxs.map((c) => c.h);
+
+  const nameKey = findHeaderKey(
+    columns,
+    ["name", "student name"],
+    ["name"],
+    ["tamil", "father", "mother", "bank", "branch", "account"]
+  );
+  const classKey = findHeaderKey(columns, ["class", "std", "standard"], ["class", "standard"]);
+  const sectionKey = findHeaderKey(columns, ["section", "sec"], ["section"]);
+  const year = detectAcademicYear(fileName);
+
+  return raw
+    .slice(1)
+    .filter((r) => r.some((c) => String(c ?? "").trim() !== ""))
+    .map((r, idx) => {
+      const obj = {};
+      colIdxs.forEach(({ h, i }) => {
+        obj[h] = String(r[i] ?? "").trim();
+      });
+      return {
+        ...obj,
+        _id: `${year}|${idx}|${nameKey ? obj[nameKey] : idx}`,
+        _year: year || "Unspecified",
+        _name: nameKey ? obj[nameKey] : "",
+        _class: classKey ? obj[classKey] : "",
+        _section: sectionKey ? obj[sectionKey] : "",
+      };
+    })
+    .filter((r) => r._name);
+}
+
+// Original column names in first-seen order, ignoring our internal _fields.
+function rowColumns(rows) {
+  const seen = [];
+  const set = new Set();
+  for (const r of rows) {
+    for (const k of Object.keys(r)) {
+      if (k.startsWith("_")) continue;
+      if (!set.has(k)) {
+        set.add(k);
+        seen.push(k);
+      }
+    }
+  }
+  return seen;
+}
+
+const PAGE_SIZE_OPTIONS = [10, 25, 50, 100];
+
+function StudentsTab({ students, importRows, ready }) {
+  const fileRef = useRef(null);
+  const [importing, setImporting] = useState(false);
+  const [importError, setImportError] = useState(null);
+  const [fileName, setFileName] = useState(null);
+
+  const [year, setYear] = useState("");
+  const [className, setClassName] = useState("");
+  const [section, setSection] = useState("");
+  const [nameQuery, setNameQuery] = useState("");
+  const [selected, setSelected] = useState(null);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+
+  const years = useMemo(
+    () => [...new Set(students.map((s) => s._year).filter(Boolean))].sort().reverse(),
+    [students]
+  );
+  const classes = useMemo(
+    () =>
+      [...new Set(students.filter((s) => !year || s._year === year).map((s) => s._class).filter(Boolean))].sort(),
+    [students, year]
+  );
+  const sections = useMemo(
+    () =>
+      [...new Set(
+        students
+          .filter((s) => (!year || s._year === year) && (!className || s._class === className))
+          .map((s) => s._section)
+          .filter(Boolean)
+      )].sort(),
+    [students, year, className]
+  );
+
+  const scoped = useMemo(
+    () =>
+      students.filter(
+        (s) =>
+          (!year || s._year === year) &&
+          (!className || s._class === className) &&
+          (!section || s._section === section)
+      ),
+    [students, year, className, section]
+  );
+
+  const matches = useMemo(() => {
+    if (!nameQuery.trim()) return [];
+    const q = nameQuery.trim().toLowerCase();
+    return scoped.filter((s) => s._name.toLowerCase().includes(q)).slice(0, 8);
+  }, [scoped, nameQuery]);
+
+  // Only these four fields are stored (locally and in Supabase), so the
+  // table always has the same fixed columns regardless of what the sheet had.
+  const columns = ["Name", "Class", "Section", "Academic Year"];
+  const columnValue = (s, c) =>
+    c === "Name" ? s._name : c === "Class" ? s._class : c === "Section" ? s._section : s._year;
+  const totalPages = Math.max(1, Math.ceil(scoped.length / pageSize));
+  const pageRows = useMemo(
+    () => scoped.slice((page - 1) * pageSize, page * pageSize),
+    [scoped, page, pageSize]
+  );
+
+  useEffect(() => {
+    setPage(1);
+  }, [year, className, section, pageSize, students]);
+
+  const handleFile = async (file) => {
+    if (!file) return;
+    setImportError(null);
+    setImporting(true);
+    setFileName(file.name);
+    try {
+      const buffer = await file.arrayBuffer();
+      const bytes = new Uint8Array(buffer);
+      const wb = XLSX.read(bytes, { type: "array" });
+      if (!wb.SheetNames || wb.SheetNames.length === 0) {
+        throw new Error("No sheets found in this file.");
+      }
+      const sheet = wb.Sheets[wb.SheetNames[0]];
+      const rows = parseSheetRows(sheet, file.name);
+      if (rows.length === 0) {
+        setImportError(
+          "No student rows found. Make sure there's a header row with a student name column (e.g. 'Name' or 'Student Name')."
+        );
+      } else {
+        const importedYear = rows[0]._year;
+        await importRows(rows, importedYear);
+        setYear(importedYear === "Unspecified" ? "" : importedYear);
+        setClassName("");
+        setSection("");
+      }
+    } catch (e) {
+      console.error("Excel import failed:", e);
+      setImportError(
+        `Could not read that file (${e?.message || "unknown error"}). Please upload a valid .xlsx, .xls or .csv file.`
+      );
+    } finally {
+      setImporting(false);
+    }
+  };
+
+  return (
+    <div>
+      {/* Import */}
+      <div className="rounded-xl p-4 sm:p-5" style={{ background: THEME.paper, border: `1px solid ${THEME.paperDark}` }}>
+        <h2 className="text-sm font-semibold uppercase tracking-wide" style={{ color: THEME.inkSoft, letterSpacing: "0.1em" }}>
+          Import Student List
+        </h2>
+        <p className="text-xs mt-1" style={{ color: THEME.inkSoft }}>
+          Only Name, Class, Section and Academic Year are saved (to the Supabase database) — any other
+          columns in the sheet are ignored. Academic year is read from the file name (e.g. "…2025-26…" or
+          "…2026_2027…") — name the file accordingly before uploading.
+        </p>
+        <div className="mt-3 flex flex-col sm:flex-row items-start sm:items-center gap-3">
+          <button
+            onClick={() => fileRef.current?.click()}
+            className="flex items-center gap-2 text-sm px-5 py-2.5 rounded-full text-white font-semibold"
+            style={{ background: THEME.gradient }}
+          >
+            <Icon glyph="upload" size={15} />
+            {importing ? "Reading…" : "Choose Excel file"}
+          </button>
+          <input
+            ref={fileRef}
+            type="file"
+            accept=".xlsx,.xls,.csv"
+            className="hidden"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              handleFile(file);
+              e.target.value = "";
+            }}
+          />
+          {fileName && (
+            <span className="text-xs" style={{ color: THEME.moss, fontFamily: "'JetBrains Mono', monospace" }}>
+              {fileName}
+            </span>
+          )}
+        </div>
+        {importError && (
+          <div className="mt-3 text-xs px-3 py-2 rounded-xl" style={{ background: "#F6E4DD", color: THEME.coral }}>
+            {importError}
+          </div>
+        )}
+        {ready && students.length > 0 && (
+          <div className="mt-3 text-xs" style={{ color: THEME.inkSoft }}>
+            {students.length} students on record across {years.length} academic year{years.length === 1 ? "" : "s"}.
+            Re-uploading a file replaces only that year's data.
+          </div>
+        )}
+      </div>
+
+      <LeafDivider />
+
+      {/* Filters */}
+      <div className="rounded-xl p-4 sm:p-5" style={{ background: THEME.paper, border: `1px solid ${THEME.paperDark}` }}>
+        <h2 className="text-sm font-semibold uppercase tracking-wide" style={{ color: THEME.inkSoft, letterSpacing: "0.1em" }}>
+          Find Students
+        </h2>
+
+        <div className="mt-3 grid grid-cols-1 sm:grid-cols-4 gap-2">
+          <select
+            value={year}
+            onChange={(e) => {
+              setYear(e.target.value);
+              setClassName("");
+              setSection("");
+              setSelected(null);
+            }}
+            className="px-3 py-2 text-sm rounded-xl outline-none"
+            style={{ border: `1px solid ${THEME.paperDark}`, background: THEME.chalk }}
+          >
+            <option value="">Academic year — all</option>
+            {years.map((y) => (
+              <option key={y} value={y}>{y}</option>
+            ))}
+          </select>
+
+          <select
+            value={className}
+            onChange={(e) => {
+              setClassName(e.target.value);
+              setSection("");
+              setSelected(null);
+            }}
+            className="px-3 py-2 text-sm rounded-xl outline-none"
+            style={{ border: `1px solid ${THEME.paperDark}`, background: THEME.chalk }}
+          >
+            <option value="">Class — all</option>
+            {classes.map((c) => (
+              <option key={c} value={c}>{c}</option>
+            ))}
+          </select>
+
+          <select
+            value={section}
+            onChange={(e) => {
+              setSection(e.target.value);
+              setSelected(null);
+            }}
+            className="px-3 py-2 text-sm rounded-xl outline-none"
+            style={{ border: `1px solid ${THEME.paperDark}`, background: THEME.chalk }}
+          >
+            <option value="">Section — all</option>
+            {sections.map((s) => (
+              <option key={s} value={s}>{s}</option>
+            ))}
+          </select>
+
+          <div className="relative">
+            <Icon glyph="search" size={14} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: THEME.inkSoft }} />
+            <input
+              value={nameQuery}
+              onChange={(e) => {
+                setNameQuery(e.target.value);
+                setSelected(null);
+              }}
+              placeholder="Student name…"
+              className="w-full pl-8 pr-3 py-2 text-sm rounded-xl outline-none"
+              style={{ border: `1px solid ${THEME.paperDark}`, background: THEME.chalk }}
+            />
+          </div>
+        </div>
+
+        {nameQuery && !selected && (
+          <div className="mt-2 rounded-xl overflow-hidden" style={{ border: `1px solid ${THEME.paperDark}` }}>
+            {matches.length === 0 ? (
+              <div className="text-sm px-3 py-2" style={{ color: THEME.inkSoft, background: THEME.chalk }}>
+                No matching students in this scope.
+              </div>
+            ) : (
+              matches.map((s, i) => (
+                <button
+                  key={s._id}
+                  onClick={() => setSelected(s)}
+                  className="w-full text-left px-3 py-2 text-sm flex justify-between"
+                  style={{ background: THEME.chalk, borderTop: i ? `1px solid ${THEME.paperDark}` : "none" }}
+                >
+                  <span>{s._name}</span>
+                  <span style={{ color: THEME.inkSoft, fontFamily: "'JetBrains Mono', monospace" }}>
+                    {s._class}{s._section ? `-${s._section}` : ""}
+                  </span>
+                </button>
+              ))
+            )}
+          </div>
+        )}
+
+        {selected ? (
+          <div
+            className="mt-4 rounded-xl p-4"
+            style={{ background: THEME.chalk, borderTop: `3px solid ${THEME.marigold}`, border: `1px solid ${THEME.paperDark}` }}
+          >
+            <div className="flex items-center justify-between">
+              <div className="text-xs uppercase tracking-widest" style={{ color: THEME.inkSoft, letterSpacing: "0.12em" }}>
+                Specimen Record
+              </div>
+              <button onClick={() => setSelected(null)} aria-label="Close">
+                <Icon glyph="x" size={14} style={{ color: THEME.inkSoft }} />
+              </button>
+            </div>
+            <div className="mt-1 text-xl" style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 600 }}>
+              {selected._name}
+            </div>
+            <div className="mt-2 grid grid-cols-2 gap-y-1 text-sm" style={{ color: THEME.inkSoft }}>
+              <div>Class</div>
+              <div>{selected._class || "—"}</div>
+              <div>Section</div>
+              <div>{selected._section || "—"}</div>
+              <div>Academic Year</div>
+              <div>{selected._year || "—"}</div>
+            </div>
+          </div>
+        ) : (
+          !nameQuery && (
+            <>
+            <div className="mt-4">
+              <div className="flex items-center justify-between mb-2">
+                <div className="text-xs" style={{ color: THEME.inkSoft }}>
+                  {scoped.length} student{scoped.length === 1 ? "" : "s"} in this scope
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => window.print()}
+                    className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-xl text-white"
+                    style={{ background: THEME.greenDark }}
+                  >
+                    <Icon glyph="print" size={13} />
+                    Print
+                  </button>
+                  <div className="flex items-center gap-1.5 text-xs" style={{ color: THEME.inkSoft }}>
+                    Rows per page
+                    <select
+                      value={pageSize}
+                      onChange={(e) => setPageSize(Number(e.target.value))}
+                      className="px-2 py-1 text-xs rounded-xl outline-none"
+                      style={{ border: `1px solid ${THEME.paperDark}`, background: THEME.chalk }}
+                    >
+                      {PAGE_SIZE_OPTIONS.map((n) => (
+                        <option key={n} value={n}>{n}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              <div className="overflow-x-auto rounded-xl" style={{ border: `1px solid ${THEME.paperDark}` }}>
+                <table className="text-xs border-collapse" style={{ minWidth: Math.max(480, columns.length * 130) }}>
+                  <thead>
+                    <tr>
+                      {columns.map((c) => (
+                        <th
+                          key={c}
+                          className="text-left px-2 py-2 whitespace-nowrap"
+                          style={{ background: THEME.boardGreen, color: THEME.chalk }}
+                        >
+                          {c}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {pageRows.map((s, i) => (
+                      <tr
+                        key={s._id}
+                        onClick={() => setSelected(s)}
+                        className="cursor-pointer"
+                        style={{ background: i % 2 ? THEME.paper : THEME.chalk }}
+                      >
+                        {columns.map((c) => (
+                          <td key={c} className="px-2 py-1.5 whitespace-nowrap" style={{ borderTop: `1px solid ${THEME.paperDark}` }}>
+                            {columnValue(s, c) || "—"}
+                          </td>
+                        ))}
+                      </tr>
+                    ))}
+                    {pageRows.length === 0 && (
+                      <tr>
+                        <td className="px-2 py-3 text-center" colSpan={columns.length || 1} style={{ color: THEME.inkSoft }}>
+                          No students to show.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+
+              {scoped.length > 0 && (
+                <div className="flex items-center justify-between mt-2 text-xs" style={{ color: THEME.inkSoft }}>
+                  <span>
+                    Page {page} of {totalPages}
+                  </span>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setPage((p) => Math.max(1, p - 1))}
+                      disabled={page <= 1}
+                      className="px-3 py-1 rounded-xl"
+                      style={{ border: `1px solid ${THEME.paperDark}`, opacity: page <= 1 ? 0.5 : 1 }}
+                    >
+                      Prev
+                    </button>
+                    <button
+                      onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                      disabled={page >= totalPages}
+                      className="px-3 py-1 rounded-xl"
+                      style={{ border: `1px solid ${THEME.paperDark}`, opacity: page >= totalPages ? 0.5 : 1 }}
+                    >
+                      Next
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Print-only: full (unpaginated) table for the current filter scope */}
+            <div className="print-area" style={{ display: "none" }}>
+              <div className="print-header">
+                <div style={{ fontWeight: "bold" }}>
+                  Reena's Student's Tracking — Student List
+                </div>
+                <div>
+                  {[
+                    year && `Academic Year: ${year}`,
+                    className && `Class: ${className}`,
+                    section && `Section: ${section}`,
+                  ].filter(Boolean).join("  |  ") || "All students"}
+                  {"  |  "}
+                  {scoped.length} student{scoped.length === 1 ? "" : "s"}
+                  {"  |  "}
+                  Printed {new Date().toLocaleDateString()}
+                </div>
+              </div>
+              <table>
+                <thead>
+                  <tr>
+                    {columns.map((c) => (
+                      <th key={c}>{c}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {scoped.map((s) => (
+                    <tr key={s._id}>
+                      {columns.map((c) => (
+                        <td key={c}>{columnValue(s, c) || ""}</td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            </>
+          )
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Attendance — mark today's present/absent per student, filtered by
+// academic year / class / section / name, same filtering pattern as Students.
+// ---------------------------------------------------------------------------
+function AttendanceTab({ students, attendance, onMark, onMarkBulk, ready }) {
+  const [year, setYear] = useState("");
+  const [className, setClassName] = useState("");
+  const [section, setSection] = useState("");
+  const [nameQuery, setNameQuery] = useState("");
+
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const [selectedDate, setSelectedDate] = useState(todayStr);
+  const isToday = selectedDate === todayStr;
+  const dayAttendance = attendance[selectedDate] || {};
+
+  const years = useMemo(
+    () => [...new Set(students.map((s) => s._year).filter(Boolean))].sort().reverse(),
+    [students]
+  );
+  const classes = useMemo(
+    () =>
+      [...new Set(students.filter((s) => !year || s._year === year).map((s) => s._class).filter(Boolean))].sort(),
+    [students, year]
+  );
+  const sections = useMemo(
+    () =>
+      [...new Set(
+        students
+          .filter((s) => (!year || s._year === year) && (!className || s._class === className))
+          .map((s) => s._section)
+          .filter(Boolean)
+      )].sort(),
+    [students, year, className]
+  );
+
+  const scoped = useMemo(() => {
+    const q = nameQuery.trim().toLowerCase();
+    return students.filter(
+      (s) =>
+        (!year || s._year === year) &&
+        (!className || s._class === className) &&
+        (!section || s._section === section) &&
+        (!q || s._name.toLowerCase().includes(q))
+    );
+  }, [students, year, className, section, nameQuery]);
+
+  const scopedPresent = scoped.filter((s) => dayAttendance[s._id] === "present").length;
+  const scopedAbsent = scoped.filter((s) => dayAttendance[s._id] === "absent").length;
+  const unmarked = scoped.filter((s) => !dayAttendance[s._id]);
+  const [bulking, setBulking] = useState(false);
+
+  const markAttendance = (studentId, status) => {
+    const current = dayAttendance[studentId];
+    onMark(studentId, selectedDate, current === status ? null : status); // tap again to clear
+  };
+
+  const markAllPresent = async () => {
+    if (!unmarked.length || bulking) return;
+    setBulking(true);
+    try {
+      await onMarkBulk(unmarked.map((s) => s._id), selectedDate, "present");
+    } finally {
+      setBulking(false);
+    }
+  };
+
+  return (
+    <div>
+      <div className="rounded-3xl p-4 sm:p-5" style={{ background: THEME.paper, border: `1px solid ${THEME.line}` }}>
+        <div className="flex items-center justify-between gap-2">
+          <h2 className="text-sm font-semibold uppercase tracking-wide" style={{ color: THEME.inkSoft, letterSpacing: "0.1em" }}>
+            Attendance
+          </h2>
+          <div className="flex items-center gap-1.5">
+            {!isToday && (
+              <button
+                onClick={() => setSelectedDate(todayStr)}
+                className="text-xs font-semibold px-2.5 py-1 rounded-xl"
+                style={{ background: THEME.boardGreenSoft, color: THEME.boardGreen }}
+              >
+                Today
+              </button>
+            )}
+            <div className="relative">
+              <Icon glyph="calendar" size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+              <input
+                type="date"
+                value={selectedDate}
+                max={todayStr}
+                onChange={(e) => e.target.value && setSelectedDate(e.target.value)}
+                className="pl-7 pr-2 py-1.5 text-xs font-semibold rounded-xl outline-none"
+                style={{ border: `1px solid ${THEME.paperDark}`, background: THEME.chalk, color: THEME.ink }}
+              />
+            </div>
+          </div>
+        </div>
+        {!isToday && (
+          <div
+            className="mt-2 text-xs font-semibold px-3 py-1.5 rounded-xl inline-block"
+            style={{ background: THEME.marigoldSoft, color: "#8A6300" }}
+          >
+            Viewing {new Date(selectedDate + "T00:00:00").toLocaleDateString(undefined, { weekday: "long", year: "numeric", month: "short", day: "numeric" })}
+          </div>
+        )}
+
+        <div className="mt-3 grid grid-cols-1 sm:grid-cols-4 gap-2">
+          <select
+            value={year}
+            onChange={(e) => { setYear(e.target.value); setClassName(""); setSection(""); }}
+            className="px-3 py-2 text-sm rounded-xl outline-none"
+            style={{ border: `1px solid ${THEME.paperDark}`, background: THEME.chalk }}
+          >
+            <option value="">Academic year — all</option>
+            {years.map((y) => <option key={y} value={y}>{y}</option>)}
+          </select>
+          <select
+            value={className}
+            onChange={(e) => { setClassName(e.target.value); setSection(""); }}
+            className="px-3 py-2 text-sm rounded-xl outline-none"
+            style={{ border: `1px solid ${THEME.paperDark}`, background: THEME.chalk }}
+          >
+            <option value="">Class — all</option>
+            {classes.map((c) => <option key={c} value={c}>{c}</option>)}
+          </select>
+          <select
+            value={section}
+            onChange={(e) => setSection(e.target.value)}
+            className="px-3 py-2 text-sm rounded-xl outline-none"
+            style={{ border: `1px solid ${THEME.paperDark}`, background: THEME.chalk }}
+          >
+            <option value="">Section — all</option>
+            {sections.map((s) => <option key={s} value={s}>{s}</option>)}
+          </select>
+          <div className="relative">
+            <Icon glyph="search" size={14} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: THEME.inkSoft }} />
+            <input
+              value={nameQuery}
+              onChange={(e) => setNameQuery(e.target.value)}
+              placeholder="Student name…"
+              className="w-full pl-8 pr-3 py-2 text-sm rounded-xl outline-none"
+              style={{ border: `1px solid ${THEME.paperDark}`, background: THEME.chalk }}
+            />
+          </div>
+        </div>
+
+        <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+          <div className="text-xs" style={{ color: THEME.inkSoft }}>
+            {scoped.length} student{scoped.length === 1 ? "" : "s"} in this scope
+            {"  ·  "}
+            <span style={{ color: THEME.green, fontWeight: 600 }}>{scopedPresent} present</span>
+            {"  ·  "}
+            <span style={{ color: THEME.coral, fontWeight: 600 }}>{scopedAbsent} absent</span>
+          </div>
+          {unmarked.length > 0 && (
+            <button
+              onClick={markAllPresent}
+              disabled={bulking}
+              className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full disabled:opacity-50"
+              style={{ background: THEME.gradient, color: "#fff" }}
+            >
+              <span aria-hidden="true">✓</span>
+              {bulking ? "Marking…" : `Mark ${unmarked.length} remaining Present`}
+            </button>
+          )}
+        </div>
+        <p className="mt-1.5 text-xs" style={{ color: THEME.inkSoft }}>
+          Tip: tap "Mark remaining Present" first, then only tap <b>Absent</b> for the students who are out —
+          no need to tap Present one by one.
+        </p>
+
+        <div className="mt-3 rounded-xl overflow-hidden" style={{ border: `1px solid ${THEME.paperDark}`, maxHeight: "60vh", overflowY: "auto" }}>
+          {!ready && (
+            <div className="text-sm px-3 py-4 text-center" style={{ color: THEME.inkSoft }}>Loading…</div>
+          )}
+          {ready && scoped.length === 0 && (
+            <div className="text-sm px-3 py-4 text-center" style={{ color: THEME.inkSoft }}>
+              No students to show. Import a student list from the Students tab first.
+            </div>
+          )}
+          {scoped.map((s, i) => {
+            const status = dayAttendance[s._id];
+            return (
+              <div
+                key={s._id}
+                className="flex items-center justify-between gap-2 px-3 py-2.5"
+                style={{ background: i % 2 ? THEME.paper : THEME.chalk, borderTop: i ? `1px solid ${THEME.paperDark}` : "none" }}
+              >
+                <div className="min-w-0">
+                  <div className="text-sm font-medium truncate" style={{ color: THEME.ink }}>{s._name}</div>
+                  <div className="text-xs" style={{ color: THEME.inkSoft, fontFamily: "'JetBrains Mono', monospace" }}>
+                    {s._class}{s._section ? `-${s._section}` : ""}
+                  </div>
+                </div>
+                <div className="flex gap-1.5 flex-shrink-0">
+                  <button
+                    onClick={() => markAttendance(s._id, "present")}
+                    className="px-3 py-1.5 rounded-xl text-xs font-semibold"
+                    style={{
+                      background: status === "present" ? THEME.green : THEME.chalk,
+                      color: status === "present" ? "#fff" : THEME.inkSoft,
+                      border: `1px solid ${status === "present" ? THEME.green : THEME.paperDark}`,
+                    }}
+                  >
+                    Present
+                  </button>
+                  <button
+                    onClick={() => markAttendance(s._id, "absent")}
+                    className="px-3 py-1.5 rounded-xl text-xs font-semibold"
+                    style={{
+                      background: status === "absent" ? THEME.coral : THEME.chalk,
+                      color: status === "absent" ? "#fff" : THEME.inkSoft,
+                      border: `1px solid ${status === "absent" ? THEME.coral : THEME.paperDark}`,
+                    }}
+                  >
+                    Absent
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Timetable — editable weekly grid, persisted
+// ---------------------------------------------------------------------------
+function TimetableTab({ timetable, setTimetable, ready }) {
+  const [editingKey, setEditingKey] = useState(null);
+  const [draft, setDraft] = useState("");
+  const [selectedDay, setSelectedDay] = useState(null); // null = full week grid
+
+  const openCell = (dayIdx, period) => {
+    const key = `${dayIdx}-${period}`;
+    setEditingKey(key);
+    setDraft(timetable[key] || "");
+  };
+
+  const saveCell = () => {
+    if (!editingKey) return;
+    const next = { ...timetable };
+    if (draft.trim()) next[editingKey] = draft.trim();
+    else delete next[editingKey];
+    setTimetable(next);
+    setEditingKey(null);
+    setDraft("");
+  };
+
+  return (
+    <div>
+      <div className="rounded-xl p-4 sm:p-5" style={{ background: THEME.paper, border: `1px solid ${THEME.paperDark}` }}>
+        <div className="flex items-center justify-between">
+          <h2 className="text-sm font-semibold uppercase tracking-wide" style={{ color: THEME.inkSoft, letterSpacing: "0.1em" }}>
+            Weekly Timetable
+          </h2>
+          <span className="text-xs" style={{ color: THEME.inkSoft }}>
+            {ready ? "Tap a period to edit" : "Loading…"}
+          </span>
+        </div>
+
+        {/* Day navigator — jump to any day, not just today */}
+        <div className="flex gap-1.5 mt-4 overflow-x-auto pb-1">
+          <button
+            onClick={() => setSelectedDay(null)}
+            className="px-3 py-1.5 text-xs rounded-xl whitespace-nowrap"
+            style={{
+              background: selectedDay === null ? THEME.boardGreen : THEME.chalk,
+              color: selectedDay === null ? THEME.chalk : THEME.inkSoft,
+              border: `1px solid ${selectedDay === null ? THEME.boardGreen : THEME.paperDark}`,
+              fontWeight: selectedDay === null ? 600 : 500,
+            }}
+          >
+            Full Week
+          </button>
+          {DAYS.map((d, i) => {
+            const active = selectedDay === i;
+            const isToday = i === TODAY_INDEX;
+            return (
+              <button
+                key={d}
+                onClick={() => setSelectedDay(i)}
+                className="px-3 py-1.5 text-xs rounded-xl whitespace-nowrap"
+                style={{
+                  background: active ? THEME.marigold : THEME.chalk,
+                  color: active ? THEME.chalk : THEME.inkSoft,
+                  border: `1px solid ${active ? THEME.marigold : isToday ? THEME.moss : THEME.paperDark}`,
+                  fontWeight: active || isToday ? 600 : 500,
+                }}
+              >
+                {d}{isToday ? " •" : ""}
+              </button>
+            );
+          })}
+        </div>
+
+        {selectedDay === null ? (
+          <div className="mt-4 overflow-x-auto">
+            <table className="w-full text-sm border-collapse" style={{ minWidth: 560 }}>
+              <thead>
+                <tr>
+                  <th
+                    className="text-left px-2 py-2 text-xs uppercase"
+                    style={{ color: THEME.chalk, background: THEME.boardGreen, letterSpacing: "0.08em" }}
+                  >
+                    Period
+                  </th>
+                  {DAYS.map((d, i) => (
+                    <th
+                      key={d}
+                      className="px-2 py-2 text-xs uppercase cursor-pointer"
+                      onClick={() => setSelectedDay(i)}
+                      style={{
+                        color: THEME.chalk,
+                        background: i === TODAY_INDEX ? THEME.marigold : THEME.boardGreen,
+                        letterSpacing: "0.08em",
+                      }}
+                    >
+                      {d}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {PERIODS.map((p) => (
+                  <tr key={p}>
+                    <td
+                      className="px-2 py-2 text-xs font-medium"
+                      style={{ background: THEME.paperDark, color: THEME.inkSoft, fontFamily: "'JetBrains Mono', monospace" }}
+                    >
+                      P{p}
+                    </td>
+                    {DAYS.map((_, dayIdx) => {
+                      const key = `${dayIdx}-${p}`;
+                      const value = timetable[key];
+                      const isEditing = editingKey === key;
+                      return (
+                        <td
+                          key={key}
+                          className="px-1.5 py-1.5 align-top"
+                          style={{ background: THEME.chalk, border: `1px solid ${THEME.paperDark}` }}
+                        >
+                          {isEditing ? (
+                            <div className="flex flex-col gap-1">
+                              <input
+                                autoFocus
+                                value={draft}
+                                onChange={(e) => setDraft(e.target.value)}
+                                onKeyDown={(e) => e.key === "Enter" && saveCell()}
+                                placeholder="e.g. 11-A Botany"
+                                className="w-full px-1.5 py-1 text-xs rounded-xl outline-none"
+                                style={{ border: `1px solid ${THEME.moss}` }}
+                              />
+                              <div className="flex gap-1">
+                                <button
+                                  onClick={saveCell}
+                                  className="flex-1 text-xs py-1 rounded-xl text-white"
+                                  style={{ background: THEME.moss }}
+                                >
+                                  Save
+                                </button>
+                                <button
+                                  onClick={() => setEditingKey(null)}
+                                  className="text-xs px-2 py-1 rounded-xl"
+                                  style={{ border: `1px solid ${THEME.paperDark}` }}
+                                >
+                                  <Icon glyph="x" size={12} />
+                                </button>
+                              </div>
+                            </div>
+                          ) : (
+                            <button
+                              onClick={() => openCell(dayIdx, p)}
+                              className="w-full text-left text-xs px-1.5 py-2 rounded-xl"
+                              style={{ minHeight: "2.25rem", color: value ? THEME.ink : THEME.paperDark, background: "transparent" }}
+                            >
+                              {value || "+"}
+                            </button>
+                          )}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div className="mt-4">
+            <div className="flex items-center justify-between mb-2">
+              <button
+                onClick={() => setSelectedDay((d) => (d - 1 + DAYS.length) % DAYS.length)}
+                className="px-3 py-1.5 text-xs rounded-xl"
+                style={{ border: `1px solid ${THEME.paperDark}`, color: THEME.inkSoft }}
+              >
+                ← {DAYS[(selectedDay - 1 + DAYS.length) % DAYS.length]}
+              </button>
+              <div className="text-sm font-semibold" style={{ color: THEME.ink, fontFamily: "'Poppins', sans-serif" }}>
+                {DAYS[selectedDay]}{selectedDay === TODAY_INDEX ? " (Today)" : ""}
+              </div>
+              <button
+                onClick={() => setSelectedDay((d) => (d + 1) % DAYS.length)}
+                className="px-3 py-1.5 text-xs rounded-xl"
+                style={{ border: `1px solid ${THEME.paperDark}`, color: THEME.inkSoft }}
+              >
+                {DAYS[(selectedDay + 1) % DAYS.length]} →
+              </button>
+            </div>
+            <div className="rounded-xl overflow-hidden" style={{ border: `1px solid ${THEME.paperDark}` }}>
+              {PERIODS.map((p, i) => {
+                const key = `${selectedDay}-${p}`;
+                const value = timetable[key];
+                const isEditing = editingKey === key;
+                return (
+                  <div
+                    key={p}
+                    className="flex items-center gap-3 px-3 py-2.5"
+                    style={{ background: i % 2 ? THEME.paper : THEME.chalk, borderTop: i ? `1px solid ${THEME.paperDark}` : "none" }}
+                  >
+                    <div
+                      className="text-xs font-medium w-10 flex-shrink-0"
+                      style={{ color: THEME.inkSoft, fontFamily: "'JetBrains Mono', monospace" }}
+                    >
+                      P{p}
+                    </div>
+                    {isEditing ? (
+                      <div className="flex-1 flex gap-2">
+                        <input
+                          autoFocus
+                          value={draft}
+                          onChange={(e) => setDraft(e.target.value)}
+                          onKeyDown={(e) => e.key === "Enter" && saveCell()}
+                          placeholder="e.g. 11-A Botany"
+                          className="flex-1 px-2 py-1.5 text-sm rounded-xl outline-none"
+                          style={{ border: `1px solid ${THEME.moss}` }}
+                        />
+                        <button onClick={saveCell} className="text-xs px-3 py-1.5 rounded-xl text-white" style={{ background: THEME.moss }}>
+                          Save
+                        </button>
+                        <button
+                          onClick={() => setEditingKey(null)}
+                          className="text-xs px-2 py-1.5 rounded-xl"
+                          style={{ border: `1px solid ${THEME.paperDark}` }}
+                        >
+                          <Icon glyph="x" size={12} />
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => openCell(selectedDay, p)}
+                        className="flex-1 text-left text-sm px-2 py-1.5 rounded-xl"
+                        style={{ color: value ? THEME.ink : THEME.inkSoft }}
+                      >
+                        {value || "+ Add class"}
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+try {
+  const root = ReactDOM.createRoot(document.getElementById("root"));
+  root.render(<App />);
+} catch (e) {
+  console.error("App render failed:", e);
+  document.getElementById("root").innerHTML =
+    '<div style="font-family: sans-serif; padding: 24px; color: #444; max-width: 480px; margin: 0 auto;">' +
+    'Could not load the app — it hit an error while starting up.<br><br>Details:<br>' +
+    (e && e.message ? e.message : String(e)) +
+    '</div>';
+}
+</script>
+</body>
+</html>
