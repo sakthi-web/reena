@@ -5,9 +5,19 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Reena's Student's Tracking</title>
 
+<!-- PWA -->
+<link rel="manifest" href="manifest.json" />
+<meta name="theme-color" content="#6D5EF5" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="Reena's Tracking" />
+<link rel="icon" href="icon-192.png" />
+<link rel="apple-touch-icon" href="icon-192.png" />
+
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/tailwindcss/2.2.19/tailwind.min.css" />
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=Baloo+2:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
   body { margin: 0; }
 </style>
 
@@ -15,6 +25,17 @@
 <script src="https://cdn.jsdelivr.net/npm/react-dom@18/umd/react-dom.production.min.js" crossorigin="anonymous"></script>
 <script src="https://cdn.jsdelivr.net/npm/@babel/standalone@7/babel.min.js" crossorigin="anonymous"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2" crossorigin="anonymous"></script>
+<script>
+  if ("serviceWorker" in navigator) {
+    window.addEventListener("load", () => {
+      navigator.serviceWorker.register("service-worker.js").catch(() => {
+        // Offline shell just won't be available this session — the app
+        // still works fine online.
+      });
+    });
+  }
+</script>
 </head>
 <body>
 <div id="root">
@@ -73,6 +94,206 @@ const storage = {
   },
 };
 
+// ---------------------------------------------------------------------------
+// Supabase — free-tier project storing only Student name, academic year,
+// class, section, plus a present/absent record per student per date.
+// ---------------------------------------------------------------------------
+const SUPABASE_URL = "https://iwoevbqfumnkgvgroxgn.supabase.co";
+const SUPABASE_ANON_KEY =
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Iml3b2V2YnFmdW1ua2d2Z3JveGduIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODYyNTgzMjYsImV4cCI6MjEwMTgzNDMyNn0.ZQbb74jeEdvp31OiJ6dFCRIRIuc9n4b3nvHYv1gbGTE";
+const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+// Students live in Supabase now. Field names on the returned objects (_id,
+// _name, _class, _section, _year) match what the rest of the app already
+// expects, so only the fetch/import logic below needed to change.
+function useSupabaseStudents() {
+  const [students, setStudents] = useState([]);
+  const [ready, setReady] = useState(false);
+  const [error, setError] = useState(null);
+
+  const refresh = async () => {
+    const { data, error: err } = await supabaseClient
+      .from("students")
+      .select("*")
+      .order("name", { ascending: true });
+    if (err) {
+      setError(err.message);
+    } else {
+      setError(null);
+      setStudents(
+        (data || []).map((r) => ({
+          _id: r.id,
+          _name: r.name || "",
+          _class: r.class || "",
+          _section: r.section || "",
+          _year: r.academic_year || "Unspecified",
+          _gender: r.gender || "",
+        }))
+      );
+    }
+    setReady(true);
+  };
+
+  useEffect(() => {
+    refresh();
+  }, []);
+
+  // Imports students without ever discarding attendance history:
+  //  - Matches incoming rows to existing students by (year, class, section,
+  //    name), and UPDATEs them in place — the row's id (and therefore every
+  //    attendance record tied to it) is preserved.
+  //  - New names in the sheet are INSERTed.
+  //  - Only removes existing students who (a) are in the same class/section
+  //    as the sheet being imported, AND (b) are missing from that sheet — so
+  //    importing one section's list can never touch another section's roster
+  //    or attendance. If a removed student still has attendance history, the
+  //    delete is blocked by the database (ON DELETE RESTRICT) and that
+  //    student is left in place rather than losing their history.
+  const importRows = async (rows) => {
+    const groups = new Map();
+    rows.forEach((r) => {
+      const key = `${r._year}||${r._class}||${r._section}`;
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key).push(r);
+    });
+
+    const skippedNames = [];
+
+    for (const [key, groupRows] of groups) {
+      const [gYear, gClass, gSection] = key.split("||");
+
+      const { data: existing, error: fetchErr } = await supabaseClient
+        .from("students")
+        .select("id, name")
+        .eq("academic_year", gYear)
+        .eq("class", gClass)
+        .eq("section", gSection);
+      if (fetchErr) {
+        setError(fetchErr.message);
+        throw fetchErr;
+      }
+
+      const existingByName = new Map((existing || []).map((s) => [s.name.trim().toLowerCase(), s]));
+      const matchedIds = new Set();
+
+      for (const r of groupRows) {
+        const nameKey = (r._name || "").trim().toLowerCase();
+        const match = existingByName.get(nameKey);
+        if (match) {
+          matchedIds.add(match.id);
+          const { error: updErr } = await supabaseClient
+            .from("students")
+            .update({ name: r._name, class: r._class, section: r._section, academic_year: r._year, gender: r._gender || null })
+            .eq("id", match.id);
+          if (updErr) {
+            setError(updErr.message);
+            throw updErr;
+          }
+        } else {
+          const { error: insErr } = await supabaseClient.from("students").insert({
+            name: r._name,
+            academic_year: r._year,
+            class: r._class,
+            section: r._section,
+            gender: r._gender || null,
+          });
+          if (insErr) {
+            setError(insErr.message);
+            throw insErr;
+          }
+        }
+      }
+
+      for (const ex of existing || []) {
+        if (matchedIds.has(ex.id)) continue;
+        const { error: delErr } = await supabaseClient.from("students").delete().eq("id", ex.id);
+        if (delErr) skippedNames.push(ex.name); // has attendance history — kept, not deleted
+      }
+    }
+
+    await refresh();
+    return skippedNames;
+  };
+
+  return { students, ready, error, importRows, refresh };
+}
+
+// Attendance also lives in Supabase, one row per student per date. The
+// in-memory shape ({ [date]: { [studentId]: "present"|"absent" } }) matches
+// what the rest of the app already expects, so only marking/loading changed.
+function useSupabaseAttendance() {
+  const [attendance, setAttendance] = useState({});
+  const [ready, setReady] = useState(false);
+  const [error, setError] = useState(null);
+
+  const refresh = async () => {
+    const { data, error: err } = await supabaseClient
+      .from("attendance")
+      .select("student_id, date, status");
+    if (err) {
+      setError(err.message);
+    } else {
+      setError(null);
+      const next = {};
+      (data || []).forEach((r) => {
+        const day = next[r.date] || (next[r.date] = {});
+        day[r.student_id] = r.status;
+      });
+      setAttendance(next);
+    }
+    setReady(true);
+  };
+
+  useEffect(() => {
+    refresh();
+  }, []);
+
+  // Called on every Present/Absent button click. Updates local state right
+  // away, then syncs to Supabase in the background.
+  const mark = async (studentId, date, status) => {
+    setAttendance((prev) => {
+      const day = { ...(prev[date] || {}) };
+      if (status === null) delete day[studentId];
+      else day[studentId] = status;
+      return { ...prev, [date]: day };
+    });
+    try {
+      if (status === null) {
+        await supabaseClient.from("attendance").delete().eq("student_id", studentId).eq("date", date);
+      } else {
+        await supabaseClient
+          .from("attendance")
+          .upsert({ student_id: studentId, date, status }, { onConflict: "student_id,date" });
+      }
+      setError(null);
+    } catch (e) {
+      setError("Could not sync attendance to the database.");
+    }
+  };
+
+  // Mark many students at once (e.g. "mark all present") in a single
+  // network round trip instead of one request per student.
+  const markBulk = async (studentIds, date, status) => {
+    if (!studentIds.length) return;
+    setAttendance((prev) => {
+      const day = { ...(prev[date] || {}) };
+      studentIds.forEach((id) => {
+        day[id] = status;
+      });
+      return { ...prev, [date]: day };
+    });
+    try {
+      const rows = studentIds.map((student_id) => ({ student_id, date, status }));
+      await supabaseClient.from("attendance").upsert(rows, { onConflict: "student_id,date" });
+      setError(null);
+    } catch (e) {
+      setError("Could not sync attendance to the database.");
+    }
+  };
+
+  return { attendance, ready, error, mark, markBulk };
+}
+
 
 // ---------------------------------------------------------------------------
 // Lightweight icon glyphs (no external icon library dependency)
@@ -126,7 +347,7 @@ function SchoolLogo({ size = 40 }) {
         <circle cx="17" cy="14" r="6" fill="#3A2E26" />
         <path d="M11 13c0-3.3 2.7-6 6-6s6 2.7 6 6" fill="#3A2E26" />
         <path d="M9.5 30c0-5.2 3.4-9.5 7.5-9.5s7.5 4.3 7.5 9.5" fill="#FFC93C" />
-        <path d="M9.5 30c0-5.2 3.4-9.5 7.5-9.5s7.5 4.3 7.5 9.5H9.5z" fill={THEME.marigold} opacity="0.9" />
+        <path d="M9.5 30c0-5.2 3.4-9.5 7.5-9.5s7.5 4.3 7.5 9.5H9.5z" fill={THEME.green} opacity="0.9" />
         <path d="M11.5 22c1.6-1 3.6-1.5 5.5-1.5s3.9.5 5.5 1.5l-1 8h-9l-1-8z" fill="#FFFFFF" />
         <rect x="16" y="21" width="2" height="9" fill={THEME.coral} opacity="0.5" />
         {/* Boy — right */}
@@ -145,37 +366,37 @@ function SchoolLogo({ size = 40 }) {
 }
 
 // ---------------------------------------------------------------------------
-// Theme — herbarium specimen sheet meets a Tamil Nadu classroom chalkboard.
+// Theme — modern "AI assistant" SaaS look: soft blue-gray base, white cards,
+// and a blue → violet gradient carried through headers and primary buttons.
 // Core Tailwind utilities only allowed, so custom hexes live here.
 // ---------------------------------------------------------------------------
-// Rainbow / kindergarten-inspired palette — bright primary accents on a warm
-// cream base, with generous rounding applied throughout the UI.
 const THEME = {
-  boardGreen: "#7C6FF0",
-  boardGreenSoft: "#EEEAFF",
-  moss: "#4CC38A",
-  mossLight: "#A7E8C6",
+  boardGreen: "#8B5CF6",
+  boardGreenSoft: "#F1EBFF",
+  moss: "#22C55E",
+  mossLight: "#BBF7D0",
   paper: "#FFFFFF",
-  paperDark: "#F0E6CE",
-  ink: "#332E4D",
-  inkSoft: "#7A7396",
-  chalk: "#FFF8EA",
-  marigold: "#FFB020",
-  marigoldSoft: "#FFEDC2",
-  coral: "#FF6B5E",
-  navy: "#2F2B55",
+  paperDark: "#E7EBF7",
+  ink: "#1E2340",
+  inkSoft: "#6B7290",
+  chalk: "#F4F6FC",
+  marigold: "#FF9F40",
+  marigoldSoft: "#FFEBD9",
+  coral: "#FF6B6B",
+  navy: "#1E2340",
   navySoft: "#4B4478",
-  skyLight: "#E4F5FF",
-  green: "#2FBE7A",
-  greenDark: "#1C8F5A",
-  greenSoft: "#DFF7EA",
-  line: "#F0E1BE",
-  chrome: "#29B6D8",
+  skyLight: "#EAF1FF",
+  green: "#4F7CFF",
+  greenDark: "#3554D1",
+  greenSoft: "#E9EFFF",
+  line: "#E7ECF7",
+  chrome: "linear-gradient(135deg, #6D5EF5 0%, #4F7CFF 100%)",
   chromeText: "#FFFFFF",
+  gradient: "linear-gradient(135deg, #6D5EF5 0%, #4F7CFF 100%)",
 };
 
 const FONTS_IMPORT =
-  "@import url('https://fonts.googleapis.com/css2?family=Baloo+2:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');";
+  "@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');";
 
 const PRINT_STYLES = `
 @media print {
@@ -290,7 +511,7 @@ function SpecimenCard({ eyebrow, title, value, sub, accent, onClick }) {
           onClick();
         }
       }}
-      className="rounded-3xl p-5 flex-1 min-w-0 transition-shadow"
+      className="rounded-2xl p-3.5 flex-1 min-w-0 transition-shadow"
       style={{
         background: THEME.paper,
         border: `1px solid ${THEME.line}`,
@@ -305,21 +526,21 @@ function SpecimenCard({ eyebrow, title, value, sub, accent, onClick }) {
         {eyebrow}
       </div>
       <div
-        className="mt-2 text-4xl"
-        style={{ fontFamily: "'Baloo 2', sans-serif", color: THEME.ink, fontWeight: 600 }}
+        className="mt-1.5 text-3xl"
+        style={{ fontFamily: "'Poppins', sans-serif", color: THEME.ink, fontWeight: 600 }}
       >
         {value}
       </div>
-      <div className="mt-1 text-sm" style={{ color: THEME.inkSoft }}>
+      <div className="mt-0.5 text-sm" style={{ color: THEME.inkSoft }}>
         {title}
       </div>
       {sub && (
-        <div className="mt-3 text-xs" style={{ color: accent || THEME.green, fontFamily: "'JetBrains Mono', monospace" }}>
+        <div className="mt-2 text-xs" style={{ color: accent || THEME.green, fontFamily: "'JetBrains Mono', monospace" }}>
           {sub}
         </div>
       )}
       {onClick && (
-        <div className="mt-2 text-xs font-medium" style={{ color: accent || THEME.green }}>
+        <div className="mt-1.5 text-xs font-medium" style={{ color: accent || THEME.green }}>
           View →
         </div>
       )}
@@ -343,7 +564,7 @@ function Sheet({ title, children, onClose }) {
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg" style={{ fontFamily: "'Baloo 2', sans-serif", fontWeight: 600, color: THEME.ink }}>{title}</h3>
+          <h3 className="text-lg" style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 600, color: THEME.ink }}>{title}</h3>
           <button
             onClick={onClose}
             className="w-8 h-8 rounded-full flex items-center justify-center"
@@ -365,18 +586,18 @@ function QuickAction({ icon, iconBg, iconColor, title, subtitle, onClick }) {
   return (
     <button
       onClick={onClick}
-      className="rounded-3xl p-4 flex items-center gap-3 text-left transition-shadow"
+      className="rounded-2xl p-3 flex items-center gap-2.5 text-left transition-shadow"
       style={{ background: THEME.paper, border: `1px solid ${THEME.line}` }}
     >
       <div
-        className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
+        className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
         style={{ background: iconBg }}
       >
-        <Icon glyph={icon} size={18} style={{ color: iconColor }} />
+        <Icon glyph={icon} size={16} style={{ color: iconColor }} />
       </div>
-      <div>
-        <div className="text-sm font-semibold" style={{ color: THEME.ink }}>{title}</div>
-        <div className="text-xs" style={{ color: THEME.inkSoft }}>{subtitle}</div>
+      <div className="min-w-0">
+        <div className="text-sm font-semibold truncate" style={{ color: THEME.ink }}>{title}</div>
+        <div className="text-xs truncate" style={{ color: THEME.inkSoft }}>{subtitle}</div>
       </div>
     </button>
   );
@@ -388,10 +609,11 @@ function QuickAction({ icon, iconBg, iconColor, title, subtitle, onClick }) {
 function App() {
   const [tab, setTab] = useState("dashboard");
 
-  const [students, setStudents, studentsReady] = usePersistentState("students", []);
+  const { students, ready: studentsReady, error: studentsError, importRows } = useSupabaseStudents();
   const [timetable, setTimetable, timetableReady] = usePersistentState("timetable", DEFAULT_TIMETABLE);
   const [exams, setExams, examsReady] = usePersistentState("exams", []);
-  const [attendance, setAttendance, attendanceReady] = usePersistentState("attendance", {});
+  const { attendance, ready: attendanceReady, error: attendanceError, mark: markAttendance, markBulk: markAttendanceBulk } = useSupabaseAttendance();
+  const dbError = studentsError || attendanceError;
 
   const NAV_ITEMS = [
     { id: "dashboard", label: "Home", icon: "dashboard" },
@@ -408,6 +630,15 @@ function App() {
       <style>{FONTS_IMPORT}</style>
       <style>{PRINT_STYLES}</style>
 
+      {dbError && (
+        <div
+          className="text-xs px-4 py-2 text-center"
+          style={{ background: THEME.coral, color: "#fff" }}
+        >
+          Couldn't reach the database ({dbError}). Check your connection and refresh.
+        </div>
+      )}
+
       {/* Header — solid brand blue for clear contrast against the page */}
       <header style={{ background: THEME.chrome }} className="sticky top-0 z-10">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 py-4 flex items-center gap-2.5">
@@ -415,7 +646,7 @@ function App() {
           <div>
             <div
               className="text-lg sm:text-xl leading-tight"
-              style={{ fontFamily: "'Baloo 2', sans-serif", fontWeight: 600, letterSpacing: "0.01em", color: "#FFFFFF" }}
+              style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 600, letterSpacing: "0.01em", color: "#FFFFFF" }}
             >
               Reena's Student's Tracking
             </div>
@@ -433,19 +664,21 @@ function App() {
             timetable={timetable}
             exams={exams}
             setExams={setExams}
+            setTimetable={setTimetable}
             attendance={attendance}
             ready={studentsReady && timetableReady && examsReady && attendanceReady}
             setTab={setTab}
           />
         )}
         {tab === "students" && (
-          <StudentsTab students={students} setStudents={setStudents} ready={studentsReady} />
+          <StudentsTab students={students} importRows={importRows} ready={studentsReady} />
         )}
         {tab === "attendance" && (
           <AttendanceTab
             students={students}
             attendance={attendance}
-            setAttendance={setAttendance}
+            onMark={markAttendance}
+            onMarkBulk={markAttendanceBulk}
             ready={studentsReady && attendanceReady}
           />
         )}
@@ -491,7 +724,6 @@ function DashboardTab({ students, timetable, exams, setExams, attendance, ready,
   const examSectionRef = useRef(null);
   const [showDictionary, setShowDictionary] = useState(false);
   const [showTranslator, setShowTranslator] = useState(false);
-  const [showTamilCal, setShowTamilCal] = useState(false);
 
   const totalStudents = students.length;
 
@@ -548,14 +780,6 @@ function DashboardTab({ students, timetable, exams, setExams, attendance, ready,
           subtitle="English · Tamil · Hindi"
           onClick={() => setShowTranslator(true)}
         />
-        <QuickAction
-          icon="tamilCal"
-          iconBg={THEME.boardGreenSoft}
-          iconColor={THEME.boardGreen}
-          title="Tamil Calendar"
-          subtitle="Today's Tamil date"
-          onClick={() => setShowTamilCal(true)}
-        />
       </div>
 
       <div className="flex flex-col sm:flex-row gap-4">
@@ -591,7 +815,7 @@ function DashboardTab({ students, timetable, exams, setExams, attendance, ready,
 
       <LeafDivider />
 
-      <div ref={examSectionRef} className="rounded-3xl p-4 sm:p-5" style={{ background: THEME.paper, border: `1px solid ${THEME.line}` }}>
+      <div ref={examSectionRef} className="rounded-2xl p-4" style={{ background: THEME.paper, border: `1px solid ${THEME.line}` }}>
         <div className="flex items-center justify-between">
           <h2 className="text-sm font-semibold uppercase tracking-wide" style={{ color: THEME.inkSoft, letterSpacing: "0.1em" }}>
             Exam Register
@@ -696,7 +920,6 @@ function DashboardTab({ students, timetable, exams, setExams, attendance, ready,
 
       {showDictionary && <DictionarySheet onClose={() => setShowDictionary(false)} />}
       {showTranslator && <TranslatorSheet onClose={() => setShowTranslator(false)} />}
-      {showTamilCal && <TamilCalendarSheet onClose={() => setShowTamilCal(false)} />}
     </div>
   );
 }
@@ -705,6 +928,16 @@ function DashboardTab({ students, timetable, exams, setExams, attendance, ready,
 // Today's Attendance card — pick a class + section, see present/absent counts
 // and the absentee list for today, with a one-tap "copy for WhatsApp" summary.
 // ---------------------------------------------------------------------------
+// Sorts absentee lists into a stable gender order (boys, then girls, then
+// anything unlabeled/other) so the WhatsApp summary reads consistently.
+function genderRank(g) {
+  const v = (g || "").trim().toLowerCase();
+  if (["m", "male", "boy", "boys"].includes(v)) return 0;
+  if (["f", "female", "girl", "girls"].includes(v)) return 1;
+  if (!v) return 2;
+  return 3;
+}
+
 function AttendanceSummaryCard({ students, attendance, ready, setTab }) {
   const [className, setClassName] = useState("");
   const [section, setSection] = useState("");
@@ -751,9 +984,34 @@ function AttendanceSummaryCard({ students, attendance, ready, setTab }) {
     [students, className, section]
   );
 
-  const presentList = scoped.filter((s) => dayAttendance[s._id] === "present");
-  const absentList = scoped.filter((s) => dayAttendance[s._id] === "absent");
+  // Everyone not explicitly marked absent counts as present by default.
+  const presentList = scoped.filter((s) => dayAttendance[s._id] !== "absent");
+  const absentList = scoped
+    .filter((s) => dayAttendance[s._id] === "absent")
+    .sort((a, b) => genderRank(a._gender) - genderRank(b._gender) || a._name.localeCompare(b._name));
   const classLabel = className ? `${className}${section ? ` '${section}'` : ""}` : "—";
+
+  // Students in this class/section absent on more than 2 days in the
+  // selected date's calendar month — flagged so it's easy to spot patterns.
+  const monthPrefix = selectedDate.slice(0, 7); // "YYYY-MM"
+  const monthLabel = new Date(selectedDate + "T00:00:00").toLocaleDateString(undefined, {
+    month: "long",
+    year: "numeric",
+  });
+  const monthlyAbsenceCounts = useMemo(() => {
+    const counts = {};
+    Object.keys(attendance).forEach((date) => {
+      if (!date.startsWith(monthPrefix)) return;
+      const day = attendance[date];
+      scoped.forEach((s) => {
+        if (day[s._id] === "absent") counts[s._id] = (counts[s._id] || 0) + 1;
+      });
+    });
+    return counts;
+  }, [attendance, scoped, monthPrefix]);
+  const frequentAbsentees = scoped
+    .filter((s) => (monthlyAbsenceCounts[s._id] || 0) > 2)
+    .sort((a, b) => (monthlyAbsenceCounts[b._id] || 0) - (monthlyAbsenceCounts[a._id] || 0));
 
   const buildShareText = () => {
     const lines = [
@@ -766,6 +1024,10 @@ function AttendanceSummaryCard({ students, attendance, ready, setTab }) {
     if (absentList.length) {
       lines.push("", "Absentees:");
       absentList.forEach((s, i) => lines.push(`${i + 1}. ${s._name}`));
+    }
+    if (frequentAbsentees.length) {
+      lines.push("", `⚠️ Leave taken > 2 days in ${monthLabel}:`);
+      frequentAbsentees.forEach((s, i) => lines.push(`${i + 1}. ${s._name} (${monthlyAbsenceCounts[s._id]} days)`));
     }
     return lines.join("\n");
   };
@@ -801,7 +1063,7 @@ function AttendanceSummaryCard({ students, attendance, ready, setTab }) {
         </button>
       </div>
 
-      <div className="rounded-3xl p-4 sm:p-5" style={{ background: THEME.paper, border: `1px solid ${THEME.line}` }}>
+      <div className="rounded-2xl p-4" style={{ background: THEME.paper, border: `1px solid ${THEME.line}` }}>
         {!ready ? (
           <div className="text-sm text-center py-4" style={{ color: THEME.inkSoft }}>Loading…</div>
         ) : classes.length === 0 ? (
@@ -854,7 +1116,7 @@ function AttendanceSummaryCard({ students, attendance, ready, setTab }) {
             </div>
 
             <div className="mt-3 flex items-center justify-between gap-2">
-              <div className="text-base font-semibold" style={{ color: THEME.ink, fontFamily: "'Baloo 2', sans-serif" }}>
+              <div className="text-base font-semibold" style={{ color: THEME.ink, fontFamily: "'Poppins', sans-serif" }}>
                 {classLabel}
               </div>
               {!isToday && (
@@ -872,7 +1134,7 @@ function AttendanceSummaryCard({ students, attendance, ready, setTab }) {
                 <div className="text-xs uppercase tracking-wide font-semibold" style={{ color: THEME.greenDark, letterSpacing: "0.08em" }}>
                   Present
                 </div>
-                <div className="text-xl font-bold" style={{ color: THEME.greenDark, fontFamily: "'Baloo 2', sans-serif" }}>
+                <div className="text-xl font-bold" style={{ color: THEME.greenDark, fontFamily: "'Poppins', sans-serif" }}>
                   {presentList.length}
                 </div>
               </div>
@@ -883,7 +1145,7 @@ function AttendanceSummaryCard({ students, attendance, ready, setTab }) {
                 <div className="text-xs uppercase tracking-wide font-semibold" style={{ color: THEME.coral, letterSpacing: "0.08em" }}>
                   Absent
                 </div>
-                <div className="text-xl font-bold" style={{ color: THEME.coral, fontFamily: "'Baloo 2', sans-serif" }}>
+                <div className="text-xl font-bold" style={{ color: THEME.coral, fontFamily: "'Poppins', sans-serif" }}>
                   {absentList.length}
                 </div>
               </div>
@@ -916,11 +1178,40 @@ function AttendanceSummaryCard({ students, attendance, ready, setTab }) {
               )}
             </div>
 
+            {frequentAbsentees.length > 0 && (
+              <div className="mt-3">
+                <div
+                  className="text-xs font-semibold uppercase tracking-wide mb-1.5"
+                  style={{ color: THEME.coral, letterSpacing: "0.08em" }}
+                >
+                  ⚠️ Leave &gt; 2 days · {monthLabel}
+                </div>
+                <div className="rounded-xl overflow-hidden" style={{ border: `1px solid ${THEME.paperDark}` }}>
+                  {frequentAbsentees.map((s, i) => (
+                    <div
+                      key={s._id}
+                      className="px-3 py-2 text-sm flex items-center justify-between"
+                      style={{
+                        color: THEME.ink,
+                        background: i % 2 ? THEME.paper : THEME.marigoldSoft,
+                        borderTop: i ? `1px solid ${THEME.paperDark}` : "none",
+                      }}
+                    >
+                      <span>{i + 1}. {s._name}</span>
+                      <span className="text-xs font-semibold" style={{ color: THEME.coral }}>
+                        {monthlyAbsenceCounts[s._id]} days
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             <button
               onClick={copySummary}
-              className="mt-3 w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold"
+              className="mt-3 w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-full text-sm font-semibold"
               style={{
-                background: copied ? THEME.green : THEME.chrome,
+                background: copied ? THEME.green : THEME.gradient,
                 color: THEME.chromeText,
                 transition: "background 0.2s ease",
               }}
@@ -1109,8 +1400,8 @@ function TranslatorSheet({ onClose }) {
       <button
         onClick={translate}
         disabled={!text.trim() || loading || from === to}
-        className="w-full py-3 rounded-xl text-white font-semibold disabled:opacity-40 mb-2"
-        style={{ background: THEME.green, fontFamily: "'Baloo 2', sans-serif" }}
+        className="w-full py-3 rounded-full text-white font-semibold disabled:opacity-40 mb-2"
+        style={{ background: THEME.gradient, fontFamily: "'Poppins', sans-serif" }}
       >
         {loading ? "Translating…" : "Translate"}
       </button>
@@ -1354,7 +1645,7 @@ function TamilCalendarSheet({ onClose }) {
         <div className="text-xs uppercase tracking-widest" style={{ color: THEME.greenDark, letterSpacing: "0.1em" }}>
           {weekday}
         </div>
-        <div className="mt-1 text-3xl font-bold" style={{ fontFamily: "'Baloo 2', sans-serif", color: THEME.ink }}>
+        <div className="mt-1 text-3xl font-bold" style={{ fontFamily: "'Poppins', sans-serif", color: THEME.ink }}>
           {tamilDate.day} {tamilDate.month}
         </div>
         <div className="mt-1 text-sm" style={{ color: THEME.inkSoft }}>
@@ -1397,8 +1688,8 @@ function TamilCalendarSheet({ onClose }) {
         href="https://www.nithra.com/tamil-calendar"
         target="_blank"
         rel="noopener noreferrer"
-        className="mt-4 block text-center py-3 rounded-xl text-white font-semibold"
-        style={{ background: THEME.green, fontFamily: "'Baloo 2', sans-serif" }}
+        className="mt-4 block text-center py-3 rounded-full text-white font-semibold"
+        style={{ background: THEME.gradient, fontFamily: "'Poppins', sans-serif" }}
       >
         Cross-check on Nithra ↗
       </a>
@@ -1500,7 +1791,7 @@ function DictionarySheet({ onClose }) {
         <div className="space-y-3" style={{ maxHeight: "55vh", overflowY: "auto" }}>
           {result.hits.map((h) => (
             <div key={h.term} className="rounded-xl p-3" style={{ background: THEME.chalk, border: `1px solid ${THEME.line}` }}>
-              <div className="text-base font-semibold" style={{ fontFamily: "'Baloo 2', sans-serif", color: THEME.ink }}>{h.term}</div>
+              <div className="text-base font-semibold" style={{ fontFamily: "'Poppins', sans-serif", color: THEME.ink }}>{h.term}</div>
               <div className="mt-1 text-sm" style={{ color: THEME.inkSoft }}>{h.definition}</div>
               <div className="mt-1.5 text-xs flex gap-3" style={{ color: THEME.greenDark, fontFamily: "'JetBrains Mono', monospace" }}>
                 <span>தமிழ்: {h.ta || "—"}</span>
@@ -1514,7 +1805,7 @@ function DictionarySheet({ onClose }) {
       {result?.type === "general" && (
         <div style={{ maxHeight: "55vh", overflowY: "auto" }}>
           <div className="flex items-baseline gap-2 mb-2">
-            <p className="text-lg font-semibold" style={{ fontFamily: "'Baloo 2', sans-serif", color: THEME.ink }}>{result.word}</p>
+            <p className="text-lg font-semibold" style={{ fontFamily: "'Poppins', sans-serif", color: THEME.ink }}>{result.word}</p>
             {result.phonetic && <p className="text-sm" style={{ color: THEME.inkSoft }}>{result.phonetic}</p>}
           </div>
           {result.meanings.map((m, mi) => (
@@ -1581,6 +1872,7 @@ function parseSheetRows(sheet, fileName) {
   );
   const classKey = findHeaderKey(columns, ["class", "std", "standard"], ["class", "standard"]);
   const sectionKey = findHeaderKey(columns, ["section", "sec"], ["section"]);
+  const genderKey = findHeaderKey(columns, ["gender", "sex"], ["gender", "sex"]);
   const year = detectAcademicYear(fileName);
 
   return raw
@@ -1598,6 +1890,7 @@ function parseSheetRows(sheet, fileName) {
         _name: nameKey ? obj[nameKey] : "",
         _class: classKey ? obj[classKey] : "",
         _section: sectionKey ? obj[sectionKey] : "",
+        _gender: genderKey ? obj[genderKey] : "",
       };
     })
     .filter((r) => r._name);
@@ -1621,7 +1914,7 @@ function rowColumns(rows) {
 
 const PAGE_SIZE_OPTIONS = [10, 25, 50, 100];
 
-function StudentsTab({ students, setStudents, ready }) {
+function StudentsTab({ students, importRows, ready }) {
   const fileRef = useRef(null);
   const [importing, setImporting] = useState(false);
   const [importError, setImportError] = useState(null);
@@ -1672,7 +1965,15 @@ function StudentsTab({ students, setStudents, ready }) {
     return scoped.filter((s) => s._name.toLowerCase().includes(q)).slice(0, 8);
   }, [scoped, nameQuery]);
 
-  const columns = useMemo(() => rowColumns(scoped), [scoped]);
+  // Only these fields are stored (locally and in Supabase), so the table
+  // always has the same fixed columns regardless of what the sheet had.
+  const columns = ["Name", "Gender", "Class", "Section", "Academic Year"];
+  const columnValue = (s, c) =>
+    c === "Name" ? s._name
+    : c === "Gender" ? s._gender
+    : c === "Class" ? s._class
+    : c === "Section" ? s._section
+    : s._year;
   const totalPages = Math.max(1, Math.ceil(scoped.length / pageSize));
   const pageRows = useMemo(
     () => scoped.slice((page - 1) * pageSize, page * pageSize),
@@ -1703,11 +2004,16 @@ function StudentsTab({ students, setStudents, ready }) {
         );
       } else {
         const importedYear = rows[0]._year;
-        const others = students.filter((s) => s._year !== importedYear);
-        await setStudents([...others, ...rows]);
+        const skipped = await importRows(rows);
         setYear(importedYear === "Unspecified" ? "" : importedYear);
         setClassName("");
         setSection("");
+        if (skipped && skipped.length) {
+          setImportError(
+            `Imported, but couldn't remove ${skipped.length} student${skipped.length === 1 ? "" : "s"} no longer in the sheet ` +
+            `because they already have attendance recorded: ${skipped.join(", ")}. They're kept on the roster so that history isn't lost.`
+          );
+        }
       }
     } catch (e) {
       console.error("Excel import failed:", e);
@@ -1727,14 +2033,15 @@ function StudentsTab({ students, setStudents, ready }) {
           Import Student List
         </h2>
         <p className="text-xs mt-1" style={{ color: THEME.inkSoft }}>
-          Every column in the sheet is imported as-is. Academic year is read from the file name (e.g.
-          "…2025-26…" or "…2026_2027…") — name the file accordingly before uploading.
+          Only Name, Gender, Class, Section and Academic Year are saved (to the Supabase database) — any other
+          columns in the sheet are ignored. Academic year is read from the file name (e.g. "…2025-26…" or
+          "…2026_2027…") — name the file accordingly before uploading.
         </p>
         <div className="mt-3 flex flex-col sm:flex-row items-start sm:items-center gap-3">
           <button
             onClick={() => fileRef.current?.click()}
-            className="flex items-center gap-2 text-sm px-4 py-2 rounded-xl text-white"
-            style={{ background: THEME.boardGreen }}
+            className="flex items-center gap-2 text-sm px-5 py-2.5 rounded-full text-white font-semibold"
+            style={{ background: THEME.gradient }}
           >
             <Icon glyph="upload" size={15} />
             {importing ? "Reading…" : "Choose Excel file"}
@@ -1764,13 +2071,7 @@ function StudentsTab({ students, setStudents, ready }) {
         {ready && students.length > 0 && (
           <div className="mt-3 text-xs" style={{ color: THEME.inkSoft }}>
             {students.length} students on record across {years.length} academic year{years.length === 1 ? "" : "s"}.
-            Re-uploading a file replaces only that year's data.
-          </div>
-        )}
-        {columns.some((c) => SENSITIVE_HINT_KEYWORDS.some((k) => c.toLowerCase().includes(k))) && (
-          <div className="mt-3 text-xs px-3 py-2 rounded-xl" style={{ background: THEME.marigoldSoft, color: THEME.ink }}>
-            This list includes sensitive personal details (Aadhaar, contact, address, family info). Keep this
-            device secure and avoid hosting this data publicly.
+            Re-uploading a file updates that class/section only, and keeps every student's attendance history intact.
           </div>
         )}
       </div>
@@ -1884,18 +2185,18 @@ function StudentsTab({ students, setStudents, ready }) {
                 <Icon glyph="x" size={14} style={{ color: THEME.inkSoft }} />
               </button>
             </div>
-            <div className="mt-1 text-xl" style={{ fontFamily: "'Baloo 2', sans-serif", fontWeight: 600 }}>
+            <div className="mt-1 text-xl" style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 600 }}>
               {selected._name}
             </div>
             <div className="mt-2 grid grid-cols-2 gap-y-1 text-sm" style={{ color: THEME.inkSoft }}>
-              {rowColumns([selected])
-                .filter((k) => selected[k])
-                .map((k) => (
-                  <React.Fragment key={k}>
-                    <div>{k}</div>
-                    <div>{selected[k]}</div>
-                  </React.Fragment>
-                ))}
+              <div>Gender</div>
+              <div>{selected._gender || "—"}</div>
+              <div>Class</div>
+              <div>{selected._class || "—"}</div>
+              <div>Section</div>
+              <div>{selected._section || "—"}</div>
+              <div>Academic Year</div>
+              <div>{selected._year || "—"}</div>
             </div>
           </div>
         ) : (
@@ -1956,7 +2257,7 @@ function StudentsTab({ students, setStudents, ready }) {
                       >
                         {columns.map((c) => (
                           <td key={c} className="px-2 py-1.5 whitespace-nowrap" style={{ borderTop: `1px solid ${THEME.paperDark}` }}>
-                            {s[c] || "—"}
+                            {columnValue(s, c) || "—"}
                           </td>
                         ))}
                       </tr>
@@ -2029,7 +2330,7 @@ function StudentsTab({ students, setStudents, ready }) {
                   {scoped.map((s) => (
                     <tr key={s._id}>
                       {columns.map((c) => (
-                        <td key={c}>{s[c] || ""}</td>
+                        <td key={c}>{columnValue(s, c) || ""}</td>
                       ))}
                     </tr>
                   ))}
@@ -2048,7 +2349,7 @@ function StudentsTab({ students, setStudents, ready }) {
 // Attendance — mark today's present/absent per student, filtered by
 // academic year / class / section / name, same filtering pattern as Students.
 // ---------------------------------------------------------------------------
-function AttendanceTab({ students, attendance, setAttendance, ready }) {
+function AttendanceTab({ students, attendance, onMark, onMarkBulk, ready }) {
   const [year, setYear] = useState("");
   const [className, setClassName] = useState("");
   const [section, setSection] = useState("");
@@ -2090,19 +2391,17 @@ function AttendanceTab({ students, attendance, setAttendance, ready }) {
     );
   }, [students, year, className, section, nameQuery]);
 
-  const scopedPresent = scoped.filter((s) => dayAttendance[s._id] === "present").length;
   const scopedAbsent = scoped.filter((s) => dayAttendance[s._id] === "absent").length;
+  const scopedPresent = scoped.length - scopedAbsent; // unmarked students count as present by default
 
-  const markAttendance = (studentId, status) => {
-    const dayRecord = { ...(attendance[selectedDate] || {}) };
-    if (dayRecord[studentId] === status) delete dayRecord[studentId]; // tap again to clear
-    else dayRecord[studentId] = status;
-    setAttendance({ ...attendance, [selectedDate]: dayRecord });
+  const toggleAbsent = (studentId) => {
+    const current = dayAttendance[studentId];
+    onMark(studentId, selectedDate, current === "absent" ? null : "absent"); // tap again to clear
   };
 
   return (
     <div>
-      <div className="rounded-3xl p-4 sm:p-5" style={{ background: THEME.paper, border: `1px solid ${THEME.line}` }}>
+      <div className="rounded-2xl p-4" style={{ background: THEME.paper, border: `1px solid ${THEME.line}` }}>
         <div className="flex items-center justify-between gap-2">
           <h2 className="text-sm font-semibold uppercase tracking-wide" style={{ color: THEME.inkSoft, letterSpacing: "0.1em" }}>
             Attendance
@@ -2179,13 +2478,18 @@ function AttendanceTab({ students, attendance, setAttendance, ready }) {
           </div>
         </div>
 
-        <div className="mt-3 text-xs" style={{ color: THEME.inkSoft }}>
-          {scoped.length} student{scoped.length === 1 ? "" : "s"} in this scope
-          {"  ·  "}
-          <span style={{ color: THEME.green, fontWeight: 600 }}>{scopedPresent} present</span>
-          {"  ·  "}
-          <span style={{ color: THEME.coral, fontWeight: 600 }}>{scopedAbsent} absent</span>
+        <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+          <div className="text-xs" style={{ color: THEME.inkSoft }}>
+            {scoped.length} student{scoped.length === 1 ? "" : "s"} in this scope
+            {"  ·  "}
+            <span style={{ color: THEME.green, fontWeight: 600 }}>{scopedPresent} present</span>
+            {"  ·  "}
+            <span style={{ color: THEME.coral, fontWeight: 600 }}>{scopedAbsent} absent</span>
+          </div>
         </div>
+        <p className="mt-1.5 text-xs" style={{ color: THEME.inkSoft }}>
+          Everyone is marked <b>Present</b> by default — just tap <b>Absent</b> for the students who are out.
+        </p>
 
         <div className="mt-3 rounded-xl overflow-hidden" style={{ border: `1px solid ${THEME.paperDark}`, maxHeight: "60vh", overflowY: "auto" }}>
           {!ready && (
@@ -2210,20 +2514,17 @@ function AttendanceTab({ students, attendance, setAttendance, ready }) {
                     {s._class}{s._section ? `-${s._section}` : ""}
                   </div>
                 </div>
-                <div className="flex gap-1.5 flex-shrink-0">
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  {status !== "absent" && (
+                    <span
+                      className="px-2.5 py-1 rounded-xl text-xs font-semibold"
+                      style={{ background: THEME.greenSoft, color: THEME.greenDark }}
+                    >
+                      Present
+                    </span>
+                  )}
                   <button
-                    onClick={() => markAttendance(s._id, "present")}
-                    className="px-3 py-1.5 rounded-xl text-xs font-semibold"
-                    style={{
-                      background: status === "present" ? THEME.green : THEME.chalk,
-                      color: status === "present" ? "#fff" : THEME.inkSoft,
-                      border: `1px solid ${status === "present" ? THEME.green : THEME.paperDark}`,
-                    }}
-                  >
-                    Present
-                  </button>
-                  <button
-                    onClick={() => markAttendance(s._id, "absent")}
+                    onClick={() => toggleAbsent(s._id)}
                     className="px-3 py-1.5 rounded-xl text-xs font-semibold"
                     style={{
                       background: status === "absent" ? THEME.coral : THEME.chalk,
@@ -2231,7 +2532,7 @@ function AttendanceTab({ students, attendance, setAttendance, ready }) {
                       border: `1px solid ${status === "absent" ? THEME.coral : THEME.paperDark}`,
                     }}
                   >
-                    Absent
+                    {status === "absent" ? "Absent ✕" : "Absent"}
                   </button>
                 </div>
               </div>
@@ -2415,7 +2716,7 @@ function TimetableTab({ timetable, setTimetable, ready }) {
               >
                 ← {DAYS[(selectedDay - 1 + DAYS.length) % DAYS.length]}
               </button>
-              <div className="text-sm font-semibold" style={{ color: THEME.ink, fontFamily: "'Baloo 2', sans-serif" }}>
+              <div className="text-sm font-semibold" style={{ color: THEME.ink, fontFamily: "'Poppins', sans-serif" }}>
                 {DAYS[selectedDay]}{selectedDay === TODAY_INDEX ? " (Today)" : ""}
               </div>
               <button
