@@ -1014,21 +1014,12 @@ function AttendanceSummaryCard({ students, attendance, ready, setTab }) {
     [students, className]
   );
 
-  // Default to the first available class/section once the roster loads —
-  // but only as an initial pick, so tapping "All" afterwards (which also
-  // sets section to "") doesn't get silently overridden back.
-  const sectionInitialized = useRef(false);
+  // Default to the first available class, but leave section as "" (All) —
+  // that's now the default view for the WhatsApp summary.
   useEffect(() => {
     if (!ready) return;
     if (!className && classes.length) setClassName(classes[0]);
   }, [ready, classes, className]);
-  useEffect(() => {
-    if (!ready || sectionInitialized.current) return;
-    if (className && sections.length) {
-      setSection(sections[0]);
-      sectionInitialized.current = true;
-    }
-  }, [ready, className, sections]);
 
   const scoped = useMemo(
     () =>
@@ -1306,29 +1297,28 @@ function AttendanceSummaryCard({ students, attendance, ready, setTab }) {
               </div>
             )}
 
-            <div className="mt-3 flex gap-2">
-              <button
-                onClick={copySummary}
-                className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-full text-sm font-semibold"
-                style={{
-                  background: copied ? THEME.green : THEME.gradient,
-                  color: THEME.chromeText,
-                  transition: "background 0.2s ease",
-                }}
-              >
-                <Icon glyph="clipboard" size={15} />
-                {copied ? "Copied!" : "Copy for WhatsApp"}
-              </button>
-              {canShare && (
+            <div className="mt-3">
+              {canShare ? (
                 <button
                   onClick={shareSummary}
-                  className="px-4 py-2.5 rounded-full text-sm font-semibold flex items-center justify-center gap-2 flex-shrink-0"
-                  style={{ background: THEME.chalk, color: THEME.ink, border: `1px solid ${THEME.paperDark}` }}
-                  aria-label="Share summary"
-                  title="Share via WhatsApp, Notes, or any app"
+                  className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-full text-sm font-semibold"
+                  style={{ background: THEME.gradient, color: THEME.chromeText }}
                 >
                   <Icon glyph="share" size={15} />
-                  Share
+                  Share summary
+                </button>
+              ) : (
+                <button
+                  onClick={copySummary}
+                  className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-full text-sm font-semibold"
+                  style={{
+                    background: copied ? THEME.green : THEME.gradient,
+                    color: THEME.chromeText,
+                    transition: "background 0.2s ease",
+                  }}
+                >
+                  <Icon glyph="clipboard" size={15} />
+                  {copied ? "Copied!" : "Copy summary"}
                 </button>
               )}
             </div>
@@ -1352,74 +1342,6 @@ const LANGUAGES = [
 // translator/dictionary language codes.
 const SPEECH_LOCALES = { en: "en-IN", ta: "ta-IN", hi: "hi-IN" };
 
-// A focused biology/botany glossary — searched locally, no internet needed.
-const BOTANY_DICTIONARY = [
-  { term: "Photosynthesis", definition: "The process by which green plants use sunlight to synthesize food from carbon dioxide and water.", ta: "ஒளிச்சேர்க்கை", hi: "प्रकाश संश्लेषण" },
-  { term: "Chlorophyll", definition: "The green pigment in plants responsible for absorbing light for photosynthesis.", ta: "பசுங்கணிகம்", hi: "क्लोरोफिल" },
-  { term: "Stomata", definition: "Tiny pores on a leaf surface that allow gas exchange and water vapor release.", ta: "இலைத்துளை", hi: "रंध्र" },
-  { term: "Xylem", definition: "Plant tissue that conducts water and dissolved minerals from roots to the rest of the plant.", ta: "நீர்க்குழாய் திசு", hi: "जाइलम" },
-  { term: "Phloem", definition: "Plant tissue that transports food (sugars) made in the leaves to other parts of the plant.", ta: "உணவுக்குழாய் திசு", hi: "फ्लोएम" },
-  { term: "Transpiration", definition: "Loss of water vapor from plant leaves, mainly through stomata.", ta: "வேர்வையிடல்", hi: "वाष्पोत्सर्जन" },
-  { term: "Pollination", definition: "Transfer of pollen from the anther to the stigma of a flower.", ta: "மகரந்தச் சேர்க்கை", hi: "परागण" },
-  { term: "Fertilization", definition: "Fusion of male and female gametes to form a zygote.", ta: "கருவுறுதல்", hi: "निषेचन" },
-  { term: "Respiration", definition: "The process of breaking down glucose to release energy, using or not using oxygen.", ta: "சுவாசம்", hi: "श्वसन" },
-  { term: "Mitosis", definition: "Cell division that produces two genetically identical daughter cells.", ta: "சமபிரிவு", hi: "समसूत्री विभाजन" },
-  { term: "Meiosis", definition: "Cell division that produces four genetically different gametes with half the chromosome number.", ta: "குறுக்கல் பிரிவு", hi: "अर्धसूत्री विभाजन" },
-  { term: "Osmosis", definition: "Movement of water across a semi-permeable membrane from a less to a more concentrated solution.", ta: "சவ்வூடு பரவல்", hi: "परासरण" },
-  { term: "Chromosome", definition: "A thread-like structure of DNA that carries genetic information.", ta: "நிறமூர்த்தம்", hi: "गुणसूत्र" },
-  { term: "Genotype", definition: "The genetic makeup of an organism.", ta: "மரபணு அமைப்பு", hi: "जीनोटाइप" },
-  { term: "Phenotype", definition: "The observable physical or biochemical characteristics of an organism.", ta: "தோற்ற இயல்பு", hi: "फीनोटाइप" },
-  { term: "Ecosystem", definition: "A community of living organisms interacting with their physical environment.", ta: "சூழ்நிலைத் தொகுதி", hi: "पारिस्थितिकी तंत्र" },
-  { term: "Taxonomy", definition: "The science of classifying living organisms.", ta: "வகைப்பாட்டியல்", hi: "वर्गिकी" },
-  { term: "Monocot", definition: "A flowering plant with a single seed leaf (cotyledon), e.g. grasses.", ta: "ஒற்றை இலை விதைத் தாவரம்", hi: "एकबीजपत्री" },
-  { term: "Dicot", definition: "A flowering plant with two seed leaves (cotyledons), e.g. beans.", ta: "இரட்டை இலை விதைத் தாவரம்", hi: "द्विबीजपत्री" },
-  { term: "Inflorescence", definition: "The arrangement of flowers on a plant stem.", ta: "மலர் அமைப்பு", hi: "पुष्पक्रम" },
-  { term: "Stamen", definition: "The male reproductive part of a flower, consisting of anther and filament.", ta: "மகரந்தத்தாள்", hi: "पुंकेसर" },
-  { term: "Pistil", definition: "The female reproductive part of a flower, consisting of stigma, style, and ovary.", ta: "சூல் தண்டு", hi: "स्त्रीकेसर" },
-  { term: "Sepal", definition: "The outer, usually green, leaf-like part of a flower that protects the bud.", ta: "புல்லி இதழ்", hi: "बाह्यदल" },
-  { term: "Petal", definition: "One of the often brightly colored parts of a flower's corolla.", ta: "இதழ்", hi: "पंखुड़ी" },
-  { term: "Germination", definition: "The process by which a seed develops into a new plant.", ta: "முளைத்தல்", hi: "अंकुरण" },
-  { term: "Herbarium", definition: "A collection of preserved plant specimens used for study.", ta: "தாவரக் காட்சியகம்", hi: "हर्बेरियम" },
-  { term: "Auxin", definition: "A plant hormone that regulates growth, especially cell elongation.", ta: "தாவர வளர்ச்சி ஹார்மோன் (ஆக்சின்)", hi: "ऑक्सिन" },
-  { term: "Nucleus", definition: "The membrane-bound organelle that contains a cell's genetic material.", ta: "உட்கரு", hi: "केंद्रक" },
-  { term: "Mitochondria", definition: "The organelle responsible for producing energy (ATP) in a cell.", ta: "மைட்டோகாண்ட்ரியா", hi: "माइटोकॉन्ड्रिया" },
-  { term: "Vacuole", definition: "A membrane-bound sac in a cell used for storage, often large in plant cells.", ta: "வெற்றிடம்", hi: "रिक्तिका" },
-  { term: "Cell wall", definition: "The rigid outer layer of plant cells, made mainly of cellulose, that supports and protects the cell.", ta: "செல் சுவர்", hi: "कोशिका भित्ति" },
-  { term: "Cell membrane", definition: "The thin, semi-permeable layer surrounding a cell that controls what enters and leaves.", ta: "செல் சவ்வு", hi: "कोशिका झिल्ली" },
-  { term: "Chloroplast", definition: "The organelle in plant cells where photosynthesis takes place.", ta: "பசுங்கணு", hi: "हरितलवक" },
-  { term: "Ribosome", definition: "The cell organelle where proteins are synthesized.", ta: "ரைபோசோம்", hi: "राइबोसोम" },
-  { term: "Endoplasmic reticulum", definition: "A network of membranes in a cell involved in protein and lipid synthesis and transport.", ta: "எண்டோபிளாஸ்மிக் ரெட்டிகுலம்", hi: "अंतर्द्रव्यी जालिका" },
-  { term: "Golgi apparatus", definition: "The organelle that packages and dispatches proteins produced by the cell.", ta: "கோல்கை உறுப்பு", hi: "गॉल्जी उपकरण" },
-  { term: "Gene", definition: "A unit of heredity made of DNA that carries information for a specific trait.", ta: "மரபணு", hi: "जीन" },
-  { term: "Allele", definition: "One of two or more alternative forms of a gene.", ta: "மாற்று மரபணு", hi: "एलील" },
-  { term: "Dominant", definition: "An allele whose trait is expressed even when only one copy is present.", ta: "மேலாதிக்க", hi: "प्रभावी" },
-  { term: "Recessive", definition: "An allele whose trait is expressed only when two copies are present.", ta: "பின்னடைவு", hi: "अप्रभावी" },
-  { term: "Natural selection", definition: "The process by which organisms better adapted to their environment survive and reproduce more successfully.", ta: "இயற்கைத் தேர்வு", hi: "प्राकृतिक चयन" },
-  { term: "Species", definition: "A group of organisms capable of interbreeding and producing fertile offspring.", ta: "இனம்", hi: "जाति" },
-  { term: "Habitat", definition: "The natural environment in which an organism lives.", ta: "வாழிடம்", hi: "आवास" },
-  { term: "Biodiversity", definition: "The variety of living species found in an ecosystem or on Earth.", ta: "உயிரின பன்முகத்தன்மை", hi: "जैव विविधता" },
-  { term: "Symbiosis", definition: "A close, long-term biological interaction between two different species.", ta: "சகவாழ்வு", hi: "सहजीविता" },
-  { term: "Food chain", definition: "A sequence showing who eats whom in a biological community, transferring energy.", ta: "உணவுச் சங்கிலி", hi: "खाद्य श्रृंखला" },
-  { term: "Meristem", definition: "Plant tissue made of actively dividing cells, found at growing tips of roots and shoots.", ta: "மூலத்திசு", hi: "विभज्योतक" },
-  { term: "Epidermis", definition: "The outermost protective layer of cells covering a plant or leaf.", ta: "மேல்தோல்", hi: "अधिचर्म" },
-  { term: "Guard cell", definition: "A pair of specialized cells that open and close the stomata.", ta: "காவல் செல்", hi: "रक्षक कोशिका" },
-  { term: "Tropism", definition: "The directional growth of a plant in response to an external stimulus.", ta: "திசைவழி வளர்ச்சி", hi: "अनुवर्तन" },
-  { term: "Phototropism", definition: "Growth of a plant toward or away from light.", ta: "ஒளி திசைவழி வளர்ச்சி", hi: "प्रकाशानुवर्तन" },
-  { term: "Endosperm", definition: "The nutritive tissue in a seed that nourishes the developing embryo.", ta: "வித்திறை", hi: "भ्रूणपोष" },
-  { term: "Cotyledon", definition: "The seed leaf within a plant embryo, storing or absorbing food for germination.", ta: "வித்திலை", hi: "बीजपत्र" },
-  { term: "Zygote", definition: "The single cell formed by the fusion of a male and female gamete.", ta: "இணைச்செல்", hi: "युग्मनज" },
-  { term: "Vegetative propagation", definition: "Asexual reproduction of plants from stems, roots, or leaves rather than seeds.", ta: "தாவர இனப்பெருக்கம்", hi: "कायिक प्रवर्धन" },
-  { term: "Parenchyma", definition: "A simple plant tissue made of thin-walled living cells involved in storage and photosynthesis.", ta: "பாரன்கிமா திசு", hi: "मृदूतक" },
-  { term: "Sclerenchyma", definition: "Plant tissue with thick, hardened cell walls that provides mechanical support.", ta: "ஸ்களெரன்கிமா திசு", hi: "दृढ़ोतक" },
-  { term: "Tracheid", definition: "An elongated xylem cell that conducts water and provides support in plants.", ta: "டிரக்கீட் செல்", hi: "वाहिनिका" },
-  { term: "DNA", definition: "Deoxyribonucleic acid — the molecule that carries genetic instructions in living organisms.", ta: "டிஎன்ஏ", hi: "डीएनए" },
-  { term: "RNA", definition: "Ribonucleic acid — a molecule involved in coding, decoding, and expressing genes.", ta: "ஆர்என்ஏ", hi: "आरएनए" },
-  { term: "Enzyme", definition: "A protein that speeds up (catalyzes) chemical reactions in living organisms.", ta: "நொதி", hi: "एंजाइम" },
-  { term: "Hormone", definition: "A chemical messenger produced by an organism that regulates growth or other functions.", ta: "ஹார்மோன்", hi: "हार्मोन" },
-  { term: "Tissue", definition: "A group of similar cells that work together to perform a specific function.", ta: "திசு", hi: "ऊतक" },
-  { term: "Seed dormancy", definition: "A period during which a viable seed does not germinate even under favorable conditions.", ta: "விதை உறக்கநிலை", hi: "बीज सुप्तावस्था" },
-  { term: "Grafting", definition: "A technique of joining tissues of two plants so they grow as one.", ta: "ஒட்டுக்கட்டுதல்", hi: "कलम बांधना" },
-];
 
 // ---------------------------------------------------------------------------
 // Translator — English / Tamil / Hindi, slide-up sheet
@@ -1431,6 +1353,7 @@ function TranslatorSheet({ onClose }) {
   const [result, setResult] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [copied, setCopied] = useState(false);
 
   const swapLangs = () => {
     setFrom(to);
@@ -1445,6 +1368,7 @@ function TranslatorSheet({ onClose }) {
     setLoading(true);
     setError("");
     setResult("");
+    setCopied(false);
     try {
       const res = await fetch(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(q)}&langpair=${from}|${to}`);
       if (!res.ok) throw new Error(`Request failed (${res.status})`);
@@ -1458,6 +1382,24 @@ function TranslatorSheet({ onClose }) {
     } finally {
       setLoading(false);
     }
+  };
+
+  const copyResult = async () => {
+    try {
+      await navigator.clipboard.writeText(result);
+    } catch (e) {
+      const ta = document.createElement("textarea");
+      ta.value = result;
+      ta.style.position = "fixed";
+      ta.style.opacity = "0";
+      document.body.appendChild(ta);
+      ta.focus();
+      ta.select();
+      try { document.execCommand("copy"); } catch (err) {}
+      document.body.removeChild(ta);
+    }
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
   };
 
   return (
@@ -1532,7 +1474,18 @@ function TranslatorSheet({ onClose }) {
       {error && <p className="text-sm text-center py-2" style={{ color: THEME.coral }}>{error}</p>}
       {result && (
         <div className="rounded-xl p-3" style={{ background: THEME.greenSoft }}>
-          <p className="text-sm" style={{ color: THEME.ink }}>{result}</p>
+          <div className="flex items-start justify-between gap-2">
+            <p className="text-sm flex-1" style={{ color: THEME.ink }}>{result}</p>
+            <button
+              onClick={copyResult}
+              className="flex items-center gap-1 text-xs font-semibold px-2.5 py-1.5 rounded-full flex-shrink-0"
+              style={{ background: copied ? THEME.green : "#fff", color: copied ? "#fff" : THEME.greenDark, border: `1px solid ${THEME.green}` }}
+              aria-label="Copy translation"
+            >
+              <Icon glyph="clipboard" size={13} />
+              {copied ? "Copied!" : "Copy"}
+            </button>
+          </div>
         </div>
       )}
       <p className="text-xs mt-3" style={{ color: THEME.inkSoft }}>
@@ -1828,7 +1781,7 @@ function TamilCalendarSheet({ onClose }) {
 // ---------------------------------------------------------------------------
 function DictionarySheet({ onClose }) {
   const [word, setWord] = useState("");
-  const [result, setResult] = useState(null); // { type: "botany" | "general", ... }
+  const [result, setResult] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -1838,11 +1791,11 @@ function DictionarySheet({ onClose }) {
     if (!res.ok) throw new Error(`Request failed (${res.status})`);
     const data = await res.json();
     const entry = data[0];
-    const meanings = (entry?.meanings || []).slice(0, 3).map((m) => ({
+    const meanings = (entry?.meanings || []).slice(0, 4).map((m) => ({
       partOfSpeech: m.partOfSpeech,
-      definitions: (m.definitions || []).slice(0, 2).map((d) => d.definition),
+      definitions: (m.definitions || []).slice(0, 3).map((d) => d.definition),
     }));
-    return { type: "general", word: entry?.word || q, phonetic: entry?.phonetic, meanings };
+    return { word: entry?.word || q, phonetic: entry?.phonetic, meanings };
   };
 
   const lookup = async () => {
@@ -1852,19 +1805,9 @@ function DictionarySheet({ onClose }) {
     setError("");
     setResult(null);
     try {
-      const ql = q.toLowerCase();
-      const botanyHit = BOTANY_DICTIONARY.find((d) => d.term.toLowerCase() === ql);
-      const botanyPartial = !botanyHit ? BOTANY_DICTIONARY.filter((d) => d.term.toLowerCase().includes(ql)) : [];
-
-      if (botanyHit) {
-        setResult({ type: "botany", hits: [botanyHit] });
-      } else if (botanyPartial.length > 0) {
-        setResult({ type: "botany", hits: botanyPartial.slice(0, 6) });
-      } else {
-        const general = await fetchGeneral(q);
-        if (general) setResult(general);
-        else setError(`No definition found for "${q}". Check the spelling and try again.`);
-      }
+      const general = await fetchGeneral(q);
+      if (general) setResult(general);
+      else setError(`No definition found for "${q}". Check the spelling and try again.`);
     } catch (e) {
       console.error("Dictionary lookup failed:", e);
       setError("Couldn't look that up — check your internet connection and try again.");
@@ -1876,8 +1819,7 @@ function DictionarySheet({ onClose }) {
   return (
     <Sheet onClose={onClose} title="Dictionary">
       <p className="text-xs mb-3" style={{ color: THEME.inkSoft }}>
-        Checks the biology/botany glossary first (offline, with Tamil &amp; Hindi), then the general English
-        dictionary if needed.
+        Search any English word for its meaning.
       </p>
       <div className="flex gap-2 mb-4">
         <input
@@ -1906,27 +1848,12 @@ function DictionarySheet({ onClose }) {
         <div className="text-center py-6">
           <Icon glyph="book" size={26} style={{ color: THEME.greenDark }} />
           <p className="text-sm mt-2" style={{ color: THEME.inkSoft }}>
-            Search any word — biology/botany terms include Tamil &amp; Hindi translations.
+            Search any word to see its meaning.
           </p>
         </div>
       )}
 
-      {result?.type === "botany" && (
-        <div className="space-y-3" style={{ maxHeight: "55vh", overflowY: "auto" }}>
-          {result.hits.map((h) => (
-            <div key={h.term} className="rounded-xl p-3" style={{ background: THEME.chalk, border: `1px solid ${THEME.line}` }}>
-              <div className="text-base font-semibold" style={{ fontFamily: "'Poppins', sans-serif", color: THEME.ink }}>{h.term}</div>
-              <div className="mt-1 text-sm" style={{ color: THEME.inkSoft }}>{h.definition}</div>
-              <div className="mt-1.5 text-xs flex gap-3" style={{ color: THEME.greenDark, fontFamily: "'JetBrains Mono', monospace" }}>
-                <span>தமிழ்: {h.ta || "—"}</span>
-                <span>हिंदी: {h.hi || "—"}</span>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {result?.type === "general" && (
+      {result && (
         <div style={{ maxHeight: "55vh", overflowY: "auto" }}>
           <div className="flex items-baseline gap-2 mb-2">
             <p className="text-lg font-semibold" style={{ fontFamily: "'Poppins', sans-serif", color: THEME.ink }}>{result.word}</p>
@@ -2523,6 +2450,85 @@ function AttendanceTab({ students, attendance, onMark, onMarkBulk, ready }) {
     onMark(studentId, selectedDate, current === "absent" ? null : "absent"); // tap again to clear
   };
 
+  // Same WhatsApp-ready summary as the dashboard card, built from whatever
+  // year/class/section/date is currently filtered here — lets a teacher
+  // share straight from this screen without switching tabs.
+  const selectedDateLabel = new Date(selectedDate + "T00:00:00").toLocaleDateString(undefined, {
+    weekday: "short",
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  });
+  const scopeLabel = [className, section].filter(Boolean).join(" '") + (section ? "'" : "");
+  const shareLabel = scopeLabel || (year ? `AY ${year}` : "All students");
+  const monthPrefix = selectedDate.slice(0, 7);
+  const monthLabel = new Date(selectedDate + "T00:00:00").toLocaleDateString(undefined, { month: "long", year: "numeric" });
+  const monthlyAbsenceCounts = useMemo(() => {
+    const counts = {};
+    Object.keys(attendance).forEach((date) => {
+      if (!date.startsWith(monthPrefix)) return;
+      const day = attendance[date];
+      scoped.forEach((s) => {
+        if (day[s._id] === "absent") counts[s._id] = (counts[s._id] || 0) + 1;
+      });
+    });
+    return counts;
+  }, [attendance, scoped, monthPrefix]);
+
+  const buildShareText = () => {
+    const absentList = scoped
+      .filter((s) => dayAttendance[s._id] === "absent")
+      .sort((a, b) => genderRank(a._gender) - genderRank(b._gender) || a._name.localeCompare(b._name));
+    const frequentAbsentees = scoped
+      .filter((s) => (monthlyAbsenceCounts[s._id] || 0) > 2)
+      .sort((a, b) => (monthlyAbsenceCounts[b._id] || 0) - (monthlyAbsenceCounts[a._id] || 0));
+    const lines = [
+      `📋 ${selectedDate === todayStr ? "Today's" : selectedDateLabel} Attendance – ${shareLabel}`,
+      `📅 ${selectedDateLabel}`,
+      "",
+      `Present: ${scopedPresent}`,
+      `Absent: ${scopedAbsent}`,
+    ];
+    if (absentList.length) {
+      lines.push("", "Absentees:");
+      absentList.forEach((s, i) => lines.push(`${i + 1}. ${s._name}`));
+    }
+    if (frequentAbsentees.length) {
+      lines.push("", `⚠️ Leave taken > 2 days in ${monthLabel}:`);
+      frequentAbsentees.forEach((s, i) => lines.push(`${i + 1}. ${s._name} (${monthlyAbsenceCounts[s._id]} days)`));
+    }
+    return lines.join("\n");
+  };
+
+  const canShare = typeof navigator !== "undefined" && !!navigator.share;
+  const [copied, setCopied] = useState(false);
+  const shareSummary = async () => {
+    const text = buildShareText();
+    if (canShare) {
+      try {
+        await navigator.share({ title: `Attendance – ${shareLabel}`, text });
+      } catch (e) {
+        // cancelled or unsupported — nothing to do
+      }
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(text);
+    } catch (e) {
+      const ta = document.createElement("textarea");
+      ta.value = text;
+      ta.style.position = "fixed";
+      ta.style.opacity = "0";
+      document.body.appendChild(ta);
+      ta.focus();
+      ta.select();
+      try { document.execCommand("copy"); } catch (err) {}
+      document.body.removeChild(ta);
+    }
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
   return (
     <div>
       <div className="rounded-2xl p-4" style={{ background: THEME.paper, border: "none", boxShadow: "0 1px 3px rgba(15,23,42,0.08)" }}>
@@ -2610,6 +2616,16 @@ function AttendanceTab({ students, attendance, onMark, onMarkBulk, ready }) {
             {"  ·  "}
             <span style={{ color: THEME.coral, fontWeight: 600 }}>{scopedAbsent} absent</span>
           </div>
+          {scoped.length > 0 && (
+            <button
+              onClick={shareSummary}
+              className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full flex-shrink-0"
+              style={{ background: copied ? THEME.green : THEME.gradient, color: "#fff" }}
+            >
+              <Icon glyph={canShare ? "share" : "clipboard"} size={13} />
+              {canShare ? "Share summary" : copied ? "Copied!" : "Copy summary"}
+            </button>
+          )}
         </div>
         <p className="mt-1.5 text-xs" style={{ color: THEME.inkSoft }}>
           Everyone is marked <b>Present</b> by default — just tap <b>Absent</b> for the students who are out.
